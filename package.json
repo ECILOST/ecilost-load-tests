@@ -1,0 +1,23 @@
+{
+  "name": "ecilost-load-tests",
+  "version": "0.1.0",
+  "description": "Pruebas de carga de ECILOST contra el entorno local (Docker) con esquemas *_load aislados",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "migrate": "node scripts/migrate-load.mjs",
+    "service": "node scripts/start-service.mjs",
+    "tokens": "node scripts/tokens.mjs",
+    "setup": "node scripts/setup.mjs",
+    "verify": "node scripts/verify.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "jose": "^6.2.12",
+    "pg": "^8.23.1",
+    "socket.io-client": "^4.8.4"
+  }
+}

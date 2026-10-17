@@ -1,0 +1,5 @@
+node_modules/
+# Tokens firmados y datos de cada corrida: se regeneran y no se versionan.
+.data/
+# Resumenes crudos de k6 (los resultados que importan se resumen en docs/RESULTADOS.md).
+results/
