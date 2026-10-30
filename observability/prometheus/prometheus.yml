@@ -1,0 +1,60 @@
+# Raspado del lado servidor. Las metricas de k6 no se raspan: llegan por remote write y se
+# distinguen por el prefijo `k6_` y la etiqueta `testid` de cada corrida.
+global:
+  # Las corridas duran minutos: con 5 s un escalon de estres deja decenas de muestras.
+  scrape_interval: 5s
+  scrape_timeout: 4s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # GET /metrics de cada servicio (METRICS_ENABLED=true en el compose de carga). La etiqueta
+  # `service` la pone el propio servicio.
+  - job_name: services
+    static_configs:
+      - targets: ['auth:3000', 'catalog:3001', 'wallet:3002', 'auction:3003', 'engagement:3005']
+
+  - job_name: postgres
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  # Totales del nodo y del broker.
+  - job_name: rabbitmq
+    static_configs:
+      - targets: ['rabbitmq:15692']
+
+  # Profundidad y consumidores por cola: el endpoint agregado no separa colas.
+  - job_name: rabbitmq-queues
+    metrics_path: /metrics/detailed
+    params:
+      family: [queue_coarse_metrics, queue_consumer_count, queue_delivery_metrics]
+    static_configs:
+      - targets: ['rabbitmq:15692']
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ['cadvisor:8080']
+    # cAdvisor no ve los nombres de compose (ver observability/docker-compose.yml): la etiqueta
+    # `container` sale de la imagen. Solo se conservan las del sistema bajo prueba, que usan
+    # tags propios; los contenedores de desarrollo y de otros proyectos se descartan.
+    metric_relabel_configs:
+      - source_labels: [image]
+        regex: 'docker\.io/ecilost-load/([a-z]+):.*'
+        target_label: container
+        replacement: '$1'
+      - source_labels: [image]
+        regex: 'docker\.io/library/postgres:17\.11-alpine'
+        target_label: container
+        replacement: postgres
+      - source_labels: [image]
+        regex: 'docker\.io/library/rabbitmq:4\.3\.6-management-alpine'
+        target_label: container
+        replacement: rabbitmq
+      - source_labels: [container]
+        regex: '.+'
+        action: keep
+      - regex: 'id|name|image'
+        action: labeldrop
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
