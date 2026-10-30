@@ -1,15 +1,15 @@
 // Firma tokens de acceso para usuarios sinteticos: N estudiantes y un funcionario.
 //
-// Usa la llave privada LOCAL de ecilost-auth-service y el mismo kid, issuer y audience que
-// TokenService, asi que los servicios los aceptan al verificarlos contra el JWKS local. La llave
-// se lee del .env de auth y nunca se imprime ni se copia. Solo sirve en local.
+// Usa la llave del entorno de carga (.data/keys, la misma con la que firma auth en el compose) y
+// el mismo kid, issuer y audience que TokenService, asi que los servicios los aceptan al
+// verificarlos contra el JWKS de auth. La llave nunca se imprime. Solo sirve en ese entorno.
 //
 //   node scripts/tokens.mjs --students 200 [--ttl-minutes 240]
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { calculateJwkThumbprint, exportJWK, importPKCS8, importSPKI, SignJWT } from 'jose';
-import { DATA_DIR, parseArgs, readData, readServiceEnv, writeData } from './lib/config.mjs';
+import { DATA_DIR, LOAD_JWT, parseArgs, readData, readKey, writeData } from './lib/config.mjs';
 
 const ALG = 'RS256';
 const args = parseArgs();
@@ -22,11 +22,10 @@ function decodePem(value) {
   return text.replace(/\\n/g, '\n');
 }
 
-const privateKey = await importPKCS8(decodePem(readServiceEnv('auth', 'JWT_PRIVATE_KEY')), ALG);
-const publicKey = await importSPKI(decodePem(readServiceEnv('auth', 'JWT_PUBLIC_KEY')), ALG, { extractable: true });
+const privateKey = await importPKCS8(decodePem(readKey('private.b64')), ALG);
+const publicKey = await importSPKI(decodePem(readKey('public.b64')), ALG, { extractable: true });
 const kid = await calculateJwkThumbprint(await exportJWK(publicKey));
-const issuer = readServiceEnv('auth', 'JWT_ISSUER');
-const audience = readServiceEnv('auth', 'JWT_AUDIENCE');
+const { issuer, audience } = LOAD_JWT;
 
 // Los identificadores se conservan entre corridas: asi una billetera creada antes se reutiliza.
 const users = existsSync(join(DATA_DIR, 'users.json')) ? readData('users.json') : { staff: randomUUID(), students: [] };
@@ -45,6 +44,8 @@ const sign = (sub, role) =>
     .sign(privateKey);
 
 const tokens = {
+  // run.mjs vuelve a firmar si la llave del entorno cambio (p. ej. volumenes borrados).
+  kid,
   expiresAt: new Date(Date.now() + ttlMinutes * 60_000).toISOString(),
   staff: { id: users.staff, token: await sign(users.staff, 'STAFF') },
   students: await Promise.all(

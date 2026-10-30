@@ -1,26 +1,24 @@
 {
   "name": "ecilost-load-tests",
   "version": "0.1.0",
-  "description": "Pruebas de carga de ECILOST contra el entorno local (Docker) con esquemas *_load aislados",
+  "description": "Pruebas de rendimiento de ECILOST (k6, Prometheus, Grafana) contra un entorno local aislado en Docker",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "stack:infra": "docker compose -f compose/docker-compose.yml up -d --wait postgres rabbitmq azurite",
-    "stack:up": "docker compose -f compose/docker-compose.yml up -d --build --wait",
-    "stack:up:azure": "docker compose -f compose/docker-compose.yml -f compose/docker-compose.azure-limits.yml up -d --build --wait",
-    "stack:down": "docker compose -f compose/docker-compose.yml down",
-    "obs:up": "docker compose -f observability/docker-compose.yml up -d",
-    "obs:down": "docker compose -f observability/docker-compose.yml down",
+    "up": "docker compose up -d --build --wait",
+    "down": "docker compose down",
+    "scenario": "docker compose run --rm runner",
     "migrate": "node scripts/migrate-load.mjs",
     "service": "node scripts/start-service.mjs",
+    "keys": "node scripts/keys.mjs",
     "tokens": "node scripts/tokens.mjs",
     "setup": "node scripts/setup.mjs",
     "verify": "node scripts/verify.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "scenario": "node scripts/run.mjs"
+    "report": "node scripts/report.mjs"
   },
   "dependencies": {
     "jose": "^6.2.12",

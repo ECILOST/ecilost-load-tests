@@ -1,10 +1,11 @@
 // Alternativa al compose: levanta un servicio en el host con `npm run start`, apuntando a su
-// base de carga y al RabbitMQ del compose (`npm run stack:infra` antes). Sirve para depurar
-// un servicio fuera de Docker; las corridas que se reportan usan `npm run stack:up`.
+// base de carga y al RabbitMQ del compose (`docker compose up -d postgres rabbitmq azurite
+// keygen` y `npm run migrate` antes). Sirve para depurar un servicio fuera de Docker; las
+// corridas que se reportan usan el compose completo. Auth firma con las llaves de la carga.
 //
 //   node scripts/start-service.mjs <auth|catalog|wallet|auction|engagement>
 import { spawn } from 'node:child_process';
-import { LOAD_RABBITMQ_URL, loadDatabaseUrl, MIGRATED_SERVICES, serviceDir } from './lib/config.mjs';
+import { LOAD_JWT, LOAD_RABBITMQ_URL, loadDatabaseUrl, MIGRATED_SERVICES, readKey, serviceDir } from './lib/config.mjs';
 
 const service = process.argv[2];
 if (!MIGRATED_SERVICES.includes(service)) {
@@ -14,6 +15,9 @@ if (!MIGRATED_SERVICES.includes(service)) {
 
 // La variable del proceso tiene prioridad sobre el .env del servicio.
 const env = { ...process.env, DATABASE_URL: loadDatabaseUrl(service), RABBITMQ_URL: LOAD_RABBITMQ_URL, METRICS_ENABLED: 'true' };
+if (service === 'auth') {
+  Object.assign(env, { JWT_PRIVATE_KEY: readKey('private.b64'), JWT_PUBLIC_KEY: readKey('public.b64'), JWT_ISSUER: LOAD_JWT.issuer, JWT_AUDIENCE: LOAD_JWT.audience });
+}
 const url = new URL(env.DATABASE_URL);
 console.log(`${service}: base ${url.pathname.slice(1)}, esquema ${url.searchParams.get('schema')} (carga)`);
 

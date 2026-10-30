@@ -24,25 +24,29 @@ export const MIGRATED_SERVICES = ['auth', ...LOAD_SERVICES];
 
 export const serviceDir = (service) => join(WORKSPACE, `ecilost-${service}-service`);
 
+/** Llaves RS256 propias del entorno de carga (las genera scripts/keys.mjs). */
+export const KEYS_DIR = join(DATA_DIR, 'keys');
+
 /**
- * Lee una variable del `.env` de un servicio sin cargarlo en este proceso. Nunca se imprime:
- * puede ser una credencial.
+ * Issuer y audience de los tokens en el entorno de carga. Son los mismos JWT_ISSUER/JWT_AUDIENCE
+ * (AUTH_ISSUER/AUTH_AUDIENCE en wallet) que fija compose/docker-compose.yml: si cambias uno,
+ * cambia el otro.
  */
-export function readServiceEnv(service, name) {
-  const file = join(serviceDir(service), '.env');
-  if (!existsSync(file)) throw new Error(`No existe ${file}: copia .env.example a .env en ecilost-${service}-service.`);
-  for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
-    const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (match?.[1] === name) return match[2].replace(/^(['"])(.*)\1$/, '$2');
-  }
-  throw new Error(`${name} no esta en el .env de ecilost-${service}-service.`);
+export const LOAD_JWT = { issuer: 'https://auth.ecilost.local', audience: 'ecilost-services' };
+
+/** Una llave de .data/keys (base64 del PEM o el kid). */
+export function readKey(name) {
+  const file = join(KEYS_DIR, name);
+  if (!existsSync(file)) throw new Error(`Falta ${file}: levanta el entorno (docker compose up) o corre node scripts/keys.mjs.`);
+  return readFileSync(file, 'utf8').trim();
 }
 
 /**
- * Postgres de la carga (`compose/docker-compose.yml`), visto desde el host por su puerto
- * publicado. Es otro contenedor: las bases de desarrollo (5433-5437) no se tocan.
+ * Postgres de la carga (`compose/docker-compose.yml`). Por defecto, visto desde el host por su
+ * puerto publicado; el runner del compose lo cambia a `postgres:5432`. Es otro contenedor: las
+ * bases de desarrollo (5433-5437) no se tocan.
  */
-const LOAD_POSTGRES_URL = process.env.LOAD_POSTGRES_URL ?? 'postgresql://ecilost:ecilost@localhost:55432';
+export const LOAD_POSTGRES_URL = process.env.LOAD_POSTGRES_URL ?? 'postgresql://ecilost:ecilost@localhost:55432';
 
 /** RabbitMQ del compose de carga, visto desde el host. */
 export const LOAD_RABBITMQ_URL = process.env.LOAD_RABBITMQ_URL ?? 'amqp://ecilost:ecilost@localhost:55672';

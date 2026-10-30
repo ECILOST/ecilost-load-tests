@@ -4,17 +4,18 @@
 //   2. k6 con remote write a Prometheus y la etiqueta testid=<escenario>-<runId>;
 //   3. verify.mjs sobre las salas de la corrida;
 //   4. en results/<escenario>-<fecha>-<runId>/: resumen de k6 (texto y JSON con el estado de
-//      cada umbral), run.json, verificacion, logs de los servicios y meta.json con el enlace
-//      a Grafana en la ventana exacta de la corrida.
+//      cada umbral), run.json, verificacion, logs de los servicios, meta.json con el enlace
+//      a Grafana en la ventana exacta de la corrida y report.md (scripts/report.mjs).
 //
+//   docker compose run --rm runner <escenario> [opciones] [-- args de k6]      (sin Node ni k6)
 //   node scripts/run.mjs <escenario> [--students N] [--rooms N] [--rounds N] [--skip-setup]
 //                                    [-- <argumentos de k6, p. ej. -e USERS=50>]
 //
-// Requiere el sistema (npm run stack:up) y la observabilidad (npm run obs:up) levantados.
+// Requiere el entorno levantado (docker compose up -d --build --wait).
 import { spawn, spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, writeFileSync, createWriteStream } from 'node:fs';
 import { join } from 'node:path';
-import { DATA_DIR, parseArgs, readData, ROOT } from './lib/config.mjs';
+import { DATA_DIR, KEYS_DIR, parseArgs, readData, readKey, ROOT } from './lib/config.mjs';
 
 /**
  * Datos por escenario: estudiantes (= VUs maximos del escenario, ver k6/lib/profiles.js),
@@ -55,7 +56,10 @@ function node(script, scriptArgs) {
 if (!args['skip-setup']) {
   const tokens = existsSync(join(DATA_DIR, 'tokens.json')) ? readData('tokens.json') : null;
   const fresh = tokens && Date.parse(tokens.expiresAt) > Date.now() + 90 * 60_000;
-  if (!fresh || tokens.students.length < args.students) {
+  // Llave nueva (p. ej. tras borrar .data o los volumenes): los tokens anteriores ya no valen.
+  const keyKid = existsSync(join(KEYS_DIR, 'kid')) ? readKey('kid') : null;
+  const sameKey = !keyKid || tokens?.kid === keyKid;
+  if (!fresh || !sameKey || tokens.students.length < args.students) {
     step(`Tokens para ${args.students} estudiantes`);
     node('tokens.mjs', ['--students', String(Math.max(args.students, tokens?.students.length ?? 0))]);
   }
@@ -116,9 +120,12 @@ process.stdout.write(verify.stdout + verify.stderr);
 writeFileSync(join(dir, 'verify.txt'), verify.stdout + verify.stderr);
 
 // --- 4. Logs y metadatos ---------------------------------------------------------------------
+// Con `docker logs` y el nombre del contenedor: funciona igual desde el equipo y desde el
+// runner (que solo trae el cliente de Docker y el socket). Sin Docker, se omiten.
 for (const service of SERVICES) {
-  const logs = spawnSync('docker', ['compose', '-f', join(ROOT, 'compose', 'docker-compose.yml'), 'logs', '--no-color', '--since', startedAt.toISOString(), service], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
-  writeFileSync(join(dir, 'logs', `${service}.log`), (logs.stdout ?? '') + (logs.stderr ?? ''));
+  const logs = spawnSync('docker', ['logs', '--since', startedAt.toISOString(), `ecilost-load-${service}-1`], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  const text = logs.error ? `(sin logs: ${logs.error.message})\n` : (logs.stdout ?? '') + (logs.stderr ?? '');
+  writeFileSync(join(dir, 'logs', `${service}.log`), text);
 }
 const from = startedAt.getTime() - 60_000;
 const to = finishedAt.getTime() + 60_000;
@@ -136,6 +143,10 @@ const meta = {
   grafana: `${GRAFANA_URL}/d/ecilost-overview?from=${from}&to=${to}&var-testid=${testid}`,
 };
 writeFileSync(join(dir, 'meta.json'), JSON.stringify(meta, null, 2));
+
+step('Informe (k6 + Prometheus)');
+const report = spawnSync(process.execPath, [join(ROOT, 'scripts', 'report.mjs'), dir], { cwd: ROOT, encoding: 'utf8' });
+if (report.status !== 0) console.log(`  No se pudo generar report.md: ${(report.stderr || report.stdout).trim().split('\n').pop()}`);
 
 step(`Resultados en ${dir}`);
 console.log(`  k6 exit ${k6Exit}${k6Exit === 99 ? ' (umbrales incumplidos)' : ''}, verify exit ${verify.status}`);

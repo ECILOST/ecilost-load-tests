@@ -1,14 +1,11 @@
-# Observabilidad de las pruebas de rendimiento: Prometheus, Grafana y exportadores.
-#
-# Proyecto aparte del sistema bajo prueba (compose/docker-compose.yml): se puede reiniciar
-# el sistema sin perder las series ni los tableros. Se une a su red para alcanzar los
-# servicios por nombre, asi que el sistema debe estar levantado antes (npm run stack:infra).
+# Observabilidad de las pruebas de rendimiento: Prometheus, Grafana y exportadores. La incluye
+# el docker-compose.yml de la raiz (mismo proyecto y red que el sistema bajo prueba, asi
+# Prometheus alcanza los servicios por nombre). Las series y los tableros viven en volumenes
+# propios: reiniciar o reconstruir el sistema no los borra.
 #
 # Dos fuentes de metricas que no se mezclan:
 # - k6 empuja las suyas por remote write (lado cliente: lo que vive el usuario).
 # - Prometheus raspa servicios, Postgres, RabbitMQ y contenedores (lado servidor).
-name: ecilost-observability
-
 services:
   prometheus:
     image: prom/prometheus:v3.5.0
@@ -25,7 +22,6 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
-    networks: [load]
 
   grafana:
     image: grafana/grafana:12.1.0
@@ -46,7 +42,6 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     depends_on: [prometheus]
-    networks: [load]
 
   # CPU, memoria, red y throttling por contenedor (ve tambien Postgres y RabbitMQ).
   #
@@ -72,7 +67,6 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
-    networks: [load]
 
   postgres-exporter:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.17.1
@@ -83,13 +77,10 @@ services:
       DATA_SOURCE_URI: postgres:5432/postgres?sslmode=disable
       DATA_SOURCE_USER: ecilost
       DATA_SOURCE_PASS: ecilost
-    networks: [load]
 
+# Nombres fijos: conservan las series y los tableros aunque cambie el nombre del proyecto.
 volumes:
   prometheus-data:
+    name: ecilost-observability_prometheus-data
   grafana-data:
-
-networks:
-  load:
-    name: ecilost-load_default
-    external: true
+    name: ecilost-observability_grafana-data
