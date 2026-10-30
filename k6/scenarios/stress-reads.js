@@ -46,9 +46,11 @@ export const options = {
 export const setup = () => setupRun(MAX_VUS);
 export const teardown = teardownRun;
 
-export function refresh() {
+export async function refresh() {
   const me = currentStudent();
-  getRoom(me.token, me.roomId);
-  getRoomState(me.token, me.roomId);
-  getNotifications(me.token);
+  // Como `refresh()` del frontend: detalle y estado en serie, notificaciones en paralelo.
+  await Promise.all([
+    getRoom(me.token, me.roomId).then(() => getRoomState(me.token, me.roomId)),
+    getNotifications(me.token),
+  ]);
 }

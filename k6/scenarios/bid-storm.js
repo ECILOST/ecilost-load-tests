@@ -32,9 +32,9 @@ export const options = {
 
 export const setup = () => assertCapacity(VUS);
 
-export default function () {
+export default async function () {
   const student = currentStudent();
-  const state = getRoomState(student.token, student.roomId);
+  const state = await getRoomState(student.token, student.roomId);
   const round = state?.currentRound ?? null;
   if (!round || round.id !== roundId) {
     // La ronda ya cerro o la sala termino: no hay a que pujar.
@@ -43,7 +43,7 @@ export default function () {
   }
 
   const amount = Math.floor(Number(round.currentPrice) + 100 + Math.random() * 400);
-  const result = placeBid(student.token, roundId, amount);
+  const result = await placeBid(student.token, roundId, amount);
   bidLatency.add(result.duration, { status: String(result.status) });
   check(result, { 'puja respondida (201 o 409)': (r) => r.status === 201 || r.status === 409 });
 

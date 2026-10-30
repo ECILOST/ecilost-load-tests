@@ -1,6 +1,10 @@
 // Llamadas HTTP de ECILOST tal como las hace el frontend (ecilost-frontend/src/features/*/api).
 // Cada una lleva la etiqueta `name` con la plantilla de ruta, para que k6 y Prometheus agrupen
 // por endpoint y no por URL, y valida estado y forma del cuerpo con checks.
+//
+// Todas son asincronas (`http.asyncRequest`): mientras una peticion espera, el VU sigue
+// procesando los mensajes del socket, como el navegador. Con `http.get` sincrono el VU quedaba
+// bloqueado y los eventos esperaban en su cola, lo que inflaba las metricas de tiempo real.
 import http from 'k6/http';
 import { check } from 'k6';
 import { SERVICE_URL } from './config.js';
@@ -22,9 +26,9 @@ function json(response) {
   }
 }
 
-/** GET con estado 200 esperado y una validacion del cuerpo. Devuelve el cuerpo o null. */
-function get(url, token, name, valid) {
-  const response = http.get(url, { headers: headers(token), tags: { name }, responseCallback: OK });
+/** GET con estado 200 esperado y una validacion del cuerpo. Resuelve con el cuerpo o null. */
+async function get(url, token, name, valid) {
+  const response = await http.asyncRequest('GET', url, null, { headers: headers(token), tags: { name }, responseCallback: OK });
   const body = response.status === 200 ? json(response) : null;
   check(response, { [`${name} 200`]: (r) => r.status === 200, [`${name} cuerpo valido`]: () => body !== null && valid(body) });
   return body;
@@ -56,9 +60,9 @@ function conflictReason(response) {
  * Puja manual. Devuelve `{ status, accepted, duration, sentAt, answeredAt }`: `duration` es la de
  * k6 (ms); `sentAt`/`answeredAt`, el reloj local para cruzarlo con el evento del socket.
  */
-export function placeBid(token, roundId, amount) {
+export async function placeBid(token, roundId, amount) {
   const sentAt = Date.now();
-  const response = http.post(`${SERVICE_URL.auction}/rounds/${roundId}/bids`, JSON.stringify({ amount }), {
+  const response = await http.asyncRequest('POST', `${SERVICE_URL.auction}/rounds/${roundId}/bids`, JSON.stringify({ amount }), {
     headers: headers(token, true), tags: { name: 'POST /rounds/:id/bids' }, responseCallback: BID_EXPECTED,
   });
   const answeredAt = Date.now();
@@ -74,8 +78,8 @@ export function placeBid(token, roundId, amount) {
 }
 
 /** Puja automatica (HU-22) con tope `maximumAmount`. */
-export function enableAutoBid(token, roundId, maximumAmount) {
-  const response = http.put(`${SERVICE_URL.auction}/rounds/${roundId}/auto-bid`, JSON.stringify({ enabled: true, maximumAmount }), {
+export async function enableAutoBid(token, roundId, maximumAmount) {
+  const response = await http.asyncRequest('PUT', `${SERVICE_URL.auction}/rounds/${roundId}/auto-bid`, JSON.stringify({ enabled: true, maximumAmount }), {
     headers: headers(token, true), tags: { name: 'PUT /rounds/:id/auto-bid' }, responseCallback: http.expectedStatuses(200, 409),
   });
   check(response, { 'PUT /rounds/:id/auto-bid 200 o 409': (r) => r.status === 200 || r.status === 409 });

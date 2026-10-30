@@ -21,30 +21,31 @@ let entriesFetchedAt = 0;
 
 const between = (min, max) => min + Math.random() * (max - min);
 
-function catalogList(token) {
-  const rooms = listRooms(token) ?? [];
+async function catalogList(token) {
+  const rooms = (await listRooms(token)) ?? [];
   if (!rooms.some((room) => room.status === 'ACTIVE' || room.status === 'SCHEDULED')) return [];
-  const open = listOpenRoomsWithRounds(token) ?? [];
+  const open = (await listOpenRoomsWithRounds(token)) ?? [];
   if (Date.now() - entriesFetchedAt > ENTRY_CACHE_MS) {
     const entries = open.flatMap((room) => room.rounds ?? []).flatMap((round) => round.entries ?? []);
     const items = [...new Set(entries.filter((e) => e.kind === 'ITEM').map((e) => e.catalogId))];
     const lots = [...new Set(entries.filter((e) => e.kind === 'LOT').map((e) => e.catalogId))];
     // catalog limita `limit` a 200: el frontend pide una pagina por lote de ids.
-    for (let i = 0; i < items.length; i += 200) listItemsByIds(token, items.slice(i, i + 200));
-    for (let i = 0; i < lots.length; i += 200) listLotsByIds(token, lots.slice(i, i + 200));
+    const pages = [];
+    for (let i = 0; i < items.length; i += 200) pages.push(listItemsByIds(token, items.slice(i, i + 200)));
+    for (let i = 0; i < lots.length; i += 200) pages.push(listLotsByIds(token, lots.slice(i, i + 200)));
+    await Promise.all(pages);
     entriesFetchedAt = Date.now();
   }
   return open;
 }
 
-export function browseCatalog() {
+export async function browseCatalog() {
   const me = currentStudent();
   if (entriesFetchedAt === 0) {
-    getWallet(me.token);
-    getNotifications(me.token);
+    await Promise.all([getWallet(me.token), getNotifications(me.token)]);
   }
 
-  const open = catalogList(me.token);
+  const open = await catalogList(me.token);
   sleep(between(2, 6));
   if (open.length === 0) {
     sleep(15);
@@ -55,9 +56,9 @@ export function browseCatalog() {
   const until = Date.now() + between(DETAIL_MIN, DETAIL_MAX) * 1000;
   let lastNotifications = Date.now();
   while (Date.now() < until) {
-    getRoom(me.token, room.id);
+    await getRoom(me.token, room.id);
     if (Date.now() - lastNotifications >= 10_000) {
-      getNotifications(me.token);
+      await getNotifications(me.token);
       lastNotifications = Date.now();
     }
     sleep(5);
