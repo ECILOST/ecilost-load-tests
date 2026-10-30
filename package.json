@@ -19,7 +19,8 @@
     "tokens": "node scripts/tokens.mjs",
     "setup": "node scripts/setup.mjs",
     "verify": "node scripts/verify.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "scenario": "node scripts/run.mjs"
   },
   "dependencies": {
     "jose": "^6.2.12",

@@ -57,7 +57,41 @@ npm run stack:up                    # construye y levanta los cinco servicios (e
 `node scripts/start-service.mjs <servicio>` sigue sirviendo para depurar un servicio fuera de
 Docker contra la misma infraestructura.
 
-Prueba de humo de la cadena completa:
+Observabilidad (Prometheus en `localhost:9090`, Grafana en `localhost:3300`):
+
+```bash
+npm run obs:up
+```
+
+### Escenarios k6
+
+`scripts/run.mjs` prepara datos nuevos, corre k6 con remote write a Prometheus (etiqueta
+`testid=<escenario>-<runId>`), verifica las garantias y guarda todo en `results/`:
+
+```bash
+node scripts/run.mjs smoke
+node scripts/run.mjs load -- -e USERS=50
+```
+
+| Escenario | Que mide | Datos por defecto |
+|---|---|---|
+| `smoke` | scripts, datos y metricas funcionan (cero errores) | 5 estudiantes, 1 sala |
+| `load` | carga nominal: `USERS` en sala (100) + `BROWSERS` (20), 10 min estable | 120, 2 salas |
+| `stress` | escalones `STEPS` (50..400) hasta degradar, y recuperacion | 420, 2 salas |
+| `stress-reads` | relecturas/s que aguanta la sala (modelo abierto, `RATES`) | 200, 1 sala |
+| `spike` | `BASE` 10 -> `PEAK` 200 en 10 s y recuperacion | 200, 2 salas |
+| `soak` | `USERS` 60 durante 45 min: fugas y deriva | 70, 1 sala |
+| `bid-storm` | contencion de pujas sobre una ronda (`VUS`) | 100, 1 sala |
+
+Estructura: `k6/lib` (configuracion, datos, API con checks, cliente Socket.IO, metricas y
+umbrales), `k6/flows` (lo que hace cada tipo de usuario, segun el frontend) y `k6/scenarios`
+(perfiles de carga). Los umbrales de `REQUIREMENT` son el requisito de tiempo real; los de
+`REFERENCE` son valores propuestos para comparar corridas, no requisitos.
+
+En `summary.json` de cada corrida, un umbral en `false` significa que **no** se cruzo
+(se cumplio); k6 sale con 99 si alguno se cruzo.
+
+Prueba de humo de la cadena completa, sin k6:
 
 ```bash
 node scripts/tokens.mjs --students 5
@@ -69,13 +103,14 @@ node scripts/verify.mjs
 ### `setup.mjs`
 
 Todo por las APIs de los servicios: billeteras (emision inicial y recarga opcional), objetos en
-catalog, la sala con sus rondas y la admision previa. Deja `.data/run.json` para k6 y `verify.mjs`.
+catalog, las salas con sus rondas y la admision previa. Deja `.data/run.json` para k6 y `verify.mjs`.
 
 | Opcion | Por defecto | Para que |
 |---|---|---|
 | `--scenario` | `smoke` | Nombre de la corrida |
 | `--students` | 5 | Estudiantes que participan (tokens de `tokens.mjs`) |
-| `--capacity` | = estudiantes | Aforo de la sala |
+| `--rooms` | 1 | Salas; los estudiantes se reparten entre ellas |
+| `--capacity` | estudiantes / salas | Aforo de cada sala |
 | `--rounds` | 1 | Rondas (un objeto por ronda) |
 | `--starting-price` | 100 | Precio minimo de cada ronda |
 | `--buy-now` | sin compra inmediata | Precio de compra inmediata de cada ronda |
@@ -84,7 +119,8 @@ catalog, la sala con sus rondas y la admision previa. Deja `.data/run.json` para
 | `--admit false` | se admite | No admitir (para medir la admision con k6) |
 | `--wait-active` | no | Esperar a que el reloj del servidor abra la sala |
 
-Una ronda dura 3 minutos (8 como maximo con anti-sniping): cada corrida debe caber en ella.
+Una ronda dura 3 minutos (8 como maximo con anti-sniping): las corridas largas usan salas con
+varias rondas (ver `DEFAULTS` en `scripts/run.mjs`).
 
 ### `verify.mjs`
 

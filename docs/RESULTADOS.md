@@ -17,7 +17,7 @@ entre si y encontrar cuellos de botella, no como capacidad de produccion.
 
 ## Escenario 1: tormenta de pujas (HU-20, HU-21, HU-23)
 
-N estudiantes pujan durante 90 s sobre la misma ronda (`k6/bid-storm.js`). Cada uno lee el estado
+N estudiantes pujan durante 90 s sobre la misma ronda (`k6/scenarios/bid-storm.js`). Cada uno lee el estado
 de la sala y puja el precio vigente + 100 a 500, con una pausa al azar de 0 a 1 s. Todos tienen
 5.000.000 ECICoin, asi que ninguna puja deberia fallar por saldo.
 
