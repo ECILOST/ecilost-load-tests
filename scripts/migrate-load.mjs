@@ -1,9 +1,9 @@
-// Prepara las bases aisladas de la carga: crea las bases `*_load` de wallet y engagement si
-// faltan y aplica las migraciones Prisma de cada servicio en su base o esquema de carga. Las
-// bases de desarrollo no se tocan. Se puede repetir: `migrate deploy` solo aplica lo pendiente.
+// Prepara el Postgres de la carga (compose/docker-compose.yml): crea la base `*_load` de cada
+// servicio si falta y aplica sus migraciones Prisma. Las bases de desarrollo no se tocan. Se
+// puede repetir: `migrate deploy` solo aplica lo pendiente.
 import { spawnSync } from 'node:child_process';
 import pg from 'pg';
-import { isolatedByDatabase, LOAD_SERVICES, loadDatabaseUrl, serviceDir } from './lib/config.mjs';
+import { loadDatabaseUrl, MIGRATED_SERVICES, serviceDir } from './lib/config.mjs';
 
 async function ensureDatabase(service) {
   const target = new URL(loadDatabaseUrl(service));
@@ -28,9 +28,9 @@ async function ensureDatabase(service) {
   }
 }
 
-for (const service of LOAD_SERVICES.filter(isolatedByDatabase)) await ensureDatabase(service);
+for (const service of MIGRATED_SERVICES) await ensureDatabase(service);
 
-for (const service of LOAD_SERVICES) {
+for (const service of MIGRATED_SERVICES) {
   console.log(`\n=== ${service}`);
   // La variable del proceso tiene prioridad sobre el .env del servicio.
   // Comando fijo y sin datos externos: en Windows `npx` es un .cmd y necesita shell.

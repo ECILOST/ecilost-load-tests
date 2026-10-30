@@ -1,0 +1,167 @@
+# Sistema ECILOST completo para las pruebas de rendimiento, aislado de desarrollo.
+#
+# - Infraestructura propia (Postgres, RabbitMQ, Azurite) en puertos que no chocan con los
+#   contenedores de desarrollo (5433-5437, 5672, 10000): las bases *_load viven aqui.
+# - Los cinco servicios se construyen con su Dockerfile, igual que la imagen que despliega la CI,
+#   y leen su propio .env; aqui solo se reemplaza lo que apunta a localhost.
+# - Un solo Postgres con una base por servicio, como Neon en Azure (un proyecto por entorno).
+#
+# Uso (desde ecilost-load-tests): npm run stack:infra, npm run migrate, npm run stack:up.
+# Limites tipo Azure Container Apps: npm run stack:up:azure (docker-compose.azure-limits.yml).
+name: ecilost-load
+
+x-service: &service
+  restart: on-failure
+  depends_on:
+    postgres:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+
+# Los servicios se prueban por /metrics: auction y engagement no tienen endpoint de salud y
+# METRICS_ENABLED esta activo en todos. La imagen no trae curl, Node si.
+x-healthcheck: &healthcheck
+  interval: 5s
+  timeout: 3s
+  retries: 20
+  start_period: 10s
+
+services:
+  # Tags exactos y distintos a los de desarrollo (17-alpine, 4-management-alpine): cAdvisor
+  # identifica los contenedores por imagen (ver observability/prometheus/prometheus.yml).
+  postgres:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_USER: ecilost
+      POSTGRES_PASSWORD: ecilost
+      POSTGRES_DB: postgres
+    # pg_stat_statements: consultas mas lentas y mas frecuentes durante una corrida.
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "pg_stat_statements.track=all"]
+    ports:
+      - "55432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecilost -d postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4.3.6-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ecilost
+      RABBITMQ_DEFAULT_PASS: ecilost
+    ports:
+      - "55672:5672"
+      - "55673:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.37.0
+    command: ["azurite-blob", "--blobHost", "0.0.0.0", "--blobPort", "10000", "--skipApiVersionCheck"]
+
+  auth:
+    <<: *service
+    build: ../../ecilost-auth-service
+    image: ecilost-load/auth
+    env_file: ../../ecilost-auth-service/.env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      METRICS_ENABLED: "true"
+      DATABASE_URL: postgresql://ecilost:ecilost@postgres:5432/ecilost_auth_load?schema=auth
+      RABBITMQ_URL: amqp://ecilost:ecilost@rabbitmq:5672
+    ports:
+      - "3000:3000"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/metrics').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+
+  catalog:
+    <<: *service
+    build: ../../ecilost-catalog-service
+    image: ecilost-load/catalog
+    env_file: ../../ecilost-catalog-service/.env
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      METRICS_ENABLED: "true"
+      DATABASE_URL: postgresql://ecilost:ecilost@postgres:5432/ecilost_catalog_load?schema=catalog
+      RABBITMQ_URL: amqp://ecilost:ecilost@rabbitmq:5672
+      AUTH_JWKS_URL: http://auth:3000/.well-known/jwks.json
+      # Cuenta y llave publicas de desarrollo de Azurite (documentadas por Microsoft).
+      AZURE_STORAGE_ACCOUNT_NAME: devstoreaccount1
+      AZURE_STORAGE_CONTAINER: catalog-media
+      AZURE_STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+    ports:
+      - "3001:3001"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/metrics').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+
+  wallet:
+    <<: *service
+    build: ../../ecilost-wallet-service
+    image: ecilost-load/wallet
+    env_file: ../../ecilost-wallet-service/.env
+    environment:
+      NODE_ENV: production
+      PORT: "3002"
+      METRICS_ENABLED: "true"
+      DATABASE_URL: postgresql://ecilost:ecilost@postgres:5432/ecilost_wallet_load?schema=wallet
+      RABBITMQ_URL: amqp://ecilost:ecilost@rabbitmq:5672
+      AUTH_JWKS_URL: http://auth:3000/.well-known/jwks.json
+    ports:
+      - "3002:3002"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3002/metrics').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+
+  auction:
+    <<: *service
+    build: ../../ecilost-auction-service
+    image: ecilost-load/auction
+    env_file: ../../ecilost-auction-service/.env
+    environment:
+      NODE_ENV: production
+      PORT: "3003"
+      METRICS_ENABLED: "true"
+      DATABASE_URL: postgresql://ecilost:ecilost@postgres:5432/ecilost_auction_load?schema=auction
+      RABBITMQ_URL: amqp://ecilost:ecilost@rabbitmq:5672
+      AUTH_JWKS_URL: http://auth:3000/.well-known/jwks.json
+    ports:
+      - "3003:3003"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3003/metrics').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+
+  engagement:
+    <<: *service
+    build: ../../ecilost-engagement-service
+    image: ecilost-load/engagement
+    env_file: ../../ecilost-engagement-service/.env
+    environment:
+      NODE_ENV: production
+      PORT: "3005"
+      METRICS_ENABLED: "true"
+      DATABASE_URL: postgresql://ecilost:ecilost@postgres:5432/ecilost_engagement_load?schema=public
+      RABBITMQ_URL: amqp://ecilost:ecilost@rabbitmq:5672
+      AUTH_JWKS_URL: http://auth:3000/.well-known/jwks.json
+      AUCTION_SERVICE_URL: http://auction:3003
+    ports:
+      - "3005:3005"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3005/metrics').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+
+volumes:
+  postgres-data:
+  rabbitmq-data:

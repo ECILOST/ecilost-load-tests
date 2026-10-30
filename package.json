@@ -8,6 +8,12 @@
     "node": ">=22"
   },
   "scripts": {
+    "stack:infra": "docker compose -f compose/docker-compose.yml up -d --wait postgres rabbitmq azurite",
+    "stack:up": "docker compose -f compose/docker-compose.yml up -d --build --wait",
+    "stack:up:azure": "docker compose -f compose/docker-compose.yml -f compose/docker-compose.azure-limits.yml up -d --build --wait",
+    "stack:down": "docker compose -f compose/docker-compose.yml down",
+    "obs:up": "docker compose -f observability/docker-compose.yml up -d",
+    "obs:down": "docker compose -f observability/docker-compose.yml down",
     "migrate": "node scripts/migrate-load.mjs",
     "service": "node scripts/start-service.mjs",
     "tokens": "node scripts/tokens.mjs",

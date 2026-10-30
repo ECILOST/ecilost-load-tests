@@ -12,17 +12,22 @@ pruebas **miden y reportan** latencias y capacidad, y solo hacen fallar una corr
 
 ## Aislamiento
 
-Los servicios se levantan contra bases de carga dentro de los mismos contenedores de Docker:
+El sistema completo corre en Docker con su propia infraestructura (`compose/docker-compose.yml`,
+proyecto `ecilost-load`): un Postgres 17 (puerto 55432), RabbitMQ (55672, consola en 55673) y
+Azurite. Los contenedores de desarrollo (`ecilost-*-db`, `ecilost-rabbitmq`) no se tocan.
 
-| Servicio | Base de carga | Por que asi |
+| Servicio | Base de carga | Esquema |
 |---|---|---|
-| catalog | esquema `catalog_load` en `ecilost_catalog` | Prisma recibe el esquema desde `?schema=` |
-| auction | esquema `auction_load` en `ecilost_auction` | Igual; ademas fija `search_path` para su SQL crudo |
-| wallet | base `ecilost_wallet_load` (esquema `wallet`) | Sus migraciones escriben el esquema `"wallet"` a mano |
-| engagement | base `ecilost_engagement_load` (esquema `public`) | No le pasa el esquema a su adaptador de Prisma |
-| auth | la de desarrollo | Solo publica el JWKS; nadie inicia sesion durante la carga |
+| auth | `ecilost_auth_load` | `auth` |
+| catalog | `ecilost_catalog_load` | `catalog` |
+| wallet | `ecilost_wallet_load` | `wallet` (sus migraciones lo escriben a mano) |
+| auction | `ecilost_auction_load` | `auction` |
+| engagement | `ecilost_engagement_load` | `public` (no le pasa esquema a su adaptador) |
 
-Las URLs salen del `.env` de cada servicio (`scripts/lib/config.mjs`); nada de eso se imprime.
+Una base por servicio en un solo servidor, como Neon en Azure. Los servicios se construyen con su
+propio Dockerfile y leen su `.env`; el compose solo reemplaza lo que apunta a `localhost`
+(base, broker, JWKS, Azurite) y activa `METRICS_ENABLED`. Los nombres de las bases estan en
+`scripts/lib/config.mjs` y en el compose: si cambias uno, cambia el otro.
 
 ## Usuarios sinteticos
 
@@ -33,29 +38,24 @@ se copia ni se imprime. **Solo sirve en local.** Los tokens quedan en `.data/` (
 
 ## Requisitos
 
-- Node 22 o superior y Docker Desktop con los contenedores de los servicios
-  (`ecilost-*-db`, `ecilost-rabbitmq`).
+- Node 22 o superior y Docker Desktop.
 - Los repos de los servicios junto a este (`../ecilost-<servicio>-service`) con su `.env` y
-  `npm install` hecho. Si un servicio no compila tras bajar cambios, regenera su cliente de
-  Prisma con `npx prisma generate` en ese repo.
+  `npm install` hecho (las migraciones se aplican con su Prisma CLI).
 - [k6](https://k6.io) para los escenarios de carga (`winget install k6 --source winget`).
 
 ## Uso
 
 ```bash
 npm install
+npm run stack:infra                 # Postgres, RabbitMQ y Azurite de la carga
 npm run migrate                     # crea/actualiza las bases *_load (se puede repetir)
+npm run stack:up                    # construye y levanta los cinco servicios (espera healthy)
 ```
 
-Levanta cada servicio en su propia terminal (auth primero):
-
-```bash
-node scripts/start-service.mjs auth
-node scripts/start-service.mjs catalog
-node scripts/start-service.mjs wallet
-node scripts/start-service.mjs auction
-node scripts/start-service.mjs engagement
-```
+`npm run stack:up:azure` levanta los servicios con los limites de Azure Container Apps
+(0.25 vCPU, 0.5 GiB). `npm run stack:down` los apaga sin borrar los volumenes.
+`node scripts/start-service.mjs <servicio>` sigue sirviendo para depurar un servicio fuera de
+Docker contra la misma infraestructura.
 
 Prueba de humo de la cadena completa:
 
@@ -94,6 +94,6 @@ superados que se liberan al liquidar) o `FALLA`; con alguna `FALLA` sale con cod
 
 ## Empezar de cero
 
-Las bases de carga son solo de esta prueba. Para vaciarlas, borra los esquemas `catalog_load` y
-`auction_load` y las bases `ecilost_wallet_load` y `ecilost_engagement_load`, y corre de nuevo
-`npm run migrate`. Las bases de desarrollo no se tocan.
+Las bases de carga son solo de esta prueba. `docker compose -f compose/docker-compose.yml down -v`
+borra sus volumenes; despues `npm run stack:infra` y `npm run migrate`. Las bases de desarrollo no
+se tocan.
