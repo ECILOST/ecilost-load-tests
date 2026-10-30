@@ -63,6 +63,18 @@ Observabilidad (Prometheus en `localhost:9090`, Grafana en `localhost:3300`):
 npm run obs:up
 ```
 
+Tableros en la carpeta ECILOST de Grafana (`observability/grafana/dashboards`):
+
+| Tablero | Para que |
+|---|---|
+| Correlacion (`ecilost-overview`) | Usuarios, latencia y tiempo real arriba; CPU, event loop, locks de Postgres y colas abajo, en la misma linea de tiempo |
+| k6 (`ecilost-k6`) | VUs, peticiones, percentiles p50/p90/p95/p99 por endpoint, errores, checks, pujas por resultado y Socket.IO |
+| Servicios (`ecilost-services`) | Lado servidor por ruta (desde `GET /metrics`), CPU, event loop, memoria, heap, GC |
+| Infraestructura (`ecilost-infra`) | Disponibilidad, contenedores, Postgres (conexiones, locks, transacciones, consultas) y RabbitMQ |
+
+Se generan con `node observability/grafana/build-dashboards.mjs`: los cambios se hacen ahi y se
+regenera; Grafana relee los JSON solo. Los cambios hechos en la UI no se guardan.
+
 ### Escenarios k6
 
 `scripts/run.mjs` prepara datos nuevos, corre k6 con remote write a Prometheus (etiqueta

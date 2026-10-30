@@ -78,6 +78,9 @@ const startedAt = new Date();
 const k6Args = [
   // --quiet: sin TTY la barra de progreso llenaria k6.txt; el resumen final se escribe igual.
   'run', '--quiet', '-o', 'experimental-prometheus-rw', '--tag', `testid=${testid}`,
+  // Sin `url` (lleva los ids de sala y ronda: una serie nueva por corrida y endpoint) ni las de
+  // TLS/IP; `name` ya agrupa por plantilla de ruta.
+  '--system-tags', 'proto,subproto,status,method,name,group,check,error,error_code,scenario,expected_response',
   '--summary-export', join(dir, 'summary.json'), ...k6Extra, join(ROOT, 'k6', 'scenarios', `${scenario}.js`),
 ];
 const k6Out = createWriteStream(join(dir, 'k6.txt'));
