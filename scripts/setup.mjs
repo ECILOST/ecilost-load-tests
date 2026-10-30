@@ -33,8 +33,11 @@ const step = (text) => console.log(`[${new Date().toISOString().slice(11, 19)}] 
 step(`Billeteras de ${students.length} estudiantes`);
 await inBatches(students, 20, (student) => request('POST', `${SERVICE_URL.wallet}/me/bootstrap`, { token: student.token }));
 if (recharge > 0) {
-  step(`Recarga de ${recharge} ECICoin a cada uno`);
-  await inBatches(students, 20, (student) =>
+  // En serie: wallet corre cada operacion en una transaccion SERIALIZABLE con 3 reintentos y,
+  // con recargas concurrentes a billeteras distintas, responde 500 por conflicto de
+  // serializacion (hallazgo de la carga, ver docs). La preparacion no es lo que se mide.
+  step(`Recarga de ${recharge} ECICoin a cada uno (en serie)`);
+  await inBatches(students, 1, (student) =>
     request('POST', `${SERVICE_URL.wallet}/${student.id}/recharges`, {
       token: staff.token,
       body: { amount: recharge, reference: `load:${runId}:${student.id}` },

@@ -1,15 +1,17 @@
 // Verifica, con consultas de solo lectura sobre las bases de carga, las garantias que la carga
 // no debe romper. Se limita a la sala y los estudiantes de .data/run.json.
 //
-//   node scripts/verify.mjs [--requesters 200]   (--requesters: cuantos pidieron admision)
+//   node scripts/verify.mjs [--requesters 200] [--run results/bid-storm-50.run.json]
+//   (--requesters: cuantos pidieron admision; --run: otra corrida guardada en vez de .data/run.json)
 //
 // Cada comprobacion termina en OK, AVISO (esperable pero conviene mirarlo) o FALLA. Si hay
 // alguna FALLA el proceso sale con codigo 1.
+import { readFileSync } from 'node:fs';
 import pg from 'pg';
 import { loadDatabaseUrl, loadSchema, parseArgs, readData } from './lib/config.mjs';
 
 const args = parseArgs();
-const run = readData('run.json');
+const run = args.run ? JSON.parse(readFileSync(String(args.run), 'utf8')) : readData('run.json');
 const results = [];
 const check = (level, name, detail) => results.push({ level, name, detail });
 const ok = (name, detail = '') => check('OK', name, detail);
