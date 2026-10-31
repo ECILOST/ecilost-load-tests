@@ -165,7 +165,8 @@ escalones de 3 min); las siguientes usan los de 10 min en total (`ESTRATEGIA.md`
 1. **Indice para "mi mejor puja"** (C4): `@@index([bidderId, roundId])` en `Bid`. Cambio de una
    migracion; la consulta deja de leer todas las pujas de la sala. **Implementado**: p95 HTTP -29 % y
    CPU de Postgres -18 % con 100 en sala (seccion 12).
-2. **Cortar la amplificacion** (C2), la palanca mas grande:
+2. **Cortar la amplificacion** (C2), la palanca mas grande. **Implementado**: -80 % de peticiones,
+   auction sin saturar hasta 400 en sala (seccion 13).
    - el frontend ya recibe en `round.price` el precio, el lider y el cierre: aplicar el evento al
      estado local y releer solo en transiciones (`round.activated/closed`, `room.status`) o si se
      detecta un hueco de `sequence`;
@@ -214,3 +215,58 @@ nueva el de 10 min (7 estables); la base ya tenia mas pujas acumuladas en la seg
 juega en contra del indice. **auction sigue llegando a 100 % de utilizacion del event loop** con
 100 en sala: el indice mueve el techo pero no lo quita. Lo siguiente con mas impacto son las
 recomendaciones 2 y 3 (amplificacion de lecturas y costo de `GET /rooms/:id`).
+
+## 13. Despues de la recomendacion 2: el precio en vivo no relee la sala
+
+Implementado en ecilost-frontend: `round.price` y `round.extended` traen precio, lider y cierre
+completos y se pintan sin pedir la sala (`domain/live-room-events.ts`, `subscribe` del gateway);
+las transiciones, los modos dinamicos, la puja automatica propia y las reconexiones siguen
+releyendo. La bandeja se relee solo cuando cambia algo de quien mira. k6 replica ese
+comportamiento (`k6/flows/live-room.js`; `CLIENT_READS=legacy` reproduce el anterior).
+
+`load` con 100 en sala, mismo perfil de 10 min, ambas con el indice de la seccion 12. Promedio de
+los intervalos con la carga completa (>= 115 VUs) y conteos del servidor en toda la corrida:
+
+| | Frontend anterior (`load-4476af0c`) | Precio aplicado (`load-67a36294`) | Cambio |
+|---|---|---|---|
+| req/s que genera la misma gente | 632 | 126 | **-80 %** |
+| `GET /rooms/:id` / `/state` / `/notifications` en el servidor | 114 012 / 101 540 / 107 395 | 22 042 / 9 494 / 20 318 | -81 % / -91 % / -81 % |
+| p95 HTTP (todas) | 187 ms | 20 ms | -89 % |
+| p95 puja | 298 ms | 46 ms | -85 % |
+| Puja enviada -> precio visto, p95 | 469 ms | 259 ms | -45 % |
+| Precio en vivo p95 (requisito < 1 s) | 251 ms | 230 ms | = (lo pone el outbox) |
+| `room.join` p95 | 109 ms | 10 ms | -91 % |
+| CPU auction / engagement / postgres (nucleos) | 0.80 / 0.28 / 0.75 | 0.19 / 0.11 / 0.18 | -76 % / -61 % / -76 % |
+| Utilizacion del event loop de auction (max) | 100 % | 15 % | |
+| Pujas aceptadas/s | 2.65 | 3.26 | +23 % |
+| 409 "otra llego primero" | 156 | 44 | -72 % |
+
+Ambas sin errores, todos los umbrales cumplidos y `verify` sin fallas. Con 100 en sala auction
+deja de estar saturado: la carga de lectura bajo cinco veces y la puja responde en ~50 ms. El
+piso del precio en vivo (~230 ms) sigue siendo el sondeo del outbox (C7, recomendacion 4).
+
+**Estres con el cliente nuevo** (`stress-fee36291`, perfil de 10 min: escalones de 1 min, distinto
+de los 3 min de la seccion 5):
+
+| En sala | req/s | p95 HTTP | p95 puja | Pujas aceptadas/s | CPU auction | Event loop p99 auction |
+|---|---|---|---|---|---|---|
+| 50 | 40-69 | 6-7 ms | 40-45 ms | 1.3-2.1 | 0.10-0.13 | 11 ms |
+| 100 | 114-132 | 9-11 ms | 42-50 ms | 3.0-3.6 | 0.20-0.21 | 11 ms |
+| 150 | 201-210 | 18-21 ms | 53-60 ms | 4.4-4.5 | 0.30-0.32 | 12 ms |
+| 200 | 239-298 | 20-27 ms | 59-78 ms | 5.1-5.8 | 0.37-0.45 | 13-14 ms |
+| 300 | 389-410 | 33-39 ms | 78-101 ms | 6.4-7.1 | 0.57-0.65 | 14-16 ms |
+| 400 | 402-508 | 42-112 ms | 102-157 ms | 7.8-8.7 | 0.47-0.78 | 15-30 ms |
+| 25 (recuperacion) | 34-36 | 6-7 ms | 48-49 ms | 1.0 | 0.08-0.10 | 11 ms |
+
+- **Pasa todos los umbrales** (requisito y referencia) con hasta 400 en sala; 0 % de errores,
+  ningun 5xx, `verify` sin fallas. Antes la referencia se rompia desde ~150.
+- **Ya no hay saturacion en el rango probado**: auction llega a 0.82 nucleos y 69 % de
+  utilizacion del event loop como maximo; las pujas aceptadas/s **crecen** con la carga (antes
+  caian de 2.8 a 0.6). El techo quedo por encima de 400 en sala en este equipo; para ubicarlo hay
+  que subir `STEPS`.
+- Cola larga: p99 HTTP 781 ms y maximo 1.76 s en toda la corrida (algunas pujas en el ultimo
+  escalon). Precio en vivo p95 232 ms en todos los escalones.
+- `room.join` p95 27 ms (antes 917 ms). Cierre de ronda 143 ms despues de `endsAt`.
+
+Con esto la estimacion para Azure de la seccion 9 queda desactualizada: con 0.25 vCPU auction ya no
+satura en ~25-30 estudiantes. Hay que medirla con `SERVICE_CPUS=0.25 SERVICE_MEMORY=512m`.
