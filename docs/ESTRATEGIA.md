@@ -47,12 +47,17 @@ Referencia de tamano: 25/50/100 estudiantes en sala, igual que las corridas prev
 | Escenario | Objetivo | Executor y perfil | Ramp-up / estabilizacion | Datos (`run.mjs`) | Criterio |
 |---|---|---|---|---|---|
 | smoke | Scripts, datos y metricas funcionan | `constant-vus`: 2 espectadores, 2 pujadores, 1 visitante, 90 s | sin rampa | 5 est., 1 sala | 0 errores, checks 100 %, verify OK |
-| load | Comportamiento nominal | `ramping-vus`: `USERS` (25/50/100) en sala + 20 visitantes | 2 min de subida, 10 min estable, 1 min de bajada | 120 est., 2 salas, 6 rondas | requisito + referencias + verify |
-| stress | Degradacion, saturacion y recuperacion | `ramping-vus` por escalones 50/100/150/200/300/400 | 30 s de subida + 3 min estable por escalon; luego 25 usuarios 3 min | 420 est., 2 salas, 10 rondas | sin aprobacion; se corta si > 50 % falla; se registra el escalon donde rompe |
-| stress-reads | Relecturas/s que aguanta la sala (H5) | `ramping-arrival-rate` 10/50/100/200/400 it/s; 1 it = `GET /rooms/:id` + `/state` + `/notifications` | 15 s + 2 min por escalon | 200 est., 1 sala | p95 < 300 ms, sin iteraciones descartadas |
-| spike | Oleada repentina (apertura de sala, ultimo minuto) | `ramping-vus` 10 -> 200 en 10 s, 1 min, -> 10 | 1 min base, 3 min de recuperacion | 200 est., 2 salas | p95 vuelve a la base; verify OK |
-| soak | Fugas y deriva | `ramping-vus` 60 en sala + 10 visitantes, 45 min | 1 min de subida | 70 est., 1 sala, 20 rondas | memoria, event loop, conexiones y colas estables |
+| load | Comportamiento nominal | `ramping-vus`: `USERS` (25/50/100) en sala + 20 visitantes | 2 min de subida, 7 min estables, 1 min de bajada (10 min) | 120 est., 2 salas, 6 rondas | requisito + referencias + verify |
+| stress | Degradacion, saturacion y recuperacion | `ramping-vus` por escalones 50/100/150/200/300/400 | 20 s de subida + 1 min estable por escalon; luego 25 usuarios 1 min 20 s (10 min) | 420 est., 2 salas, 6 rondas | sin aprobacion; se corta si > 50 % falla; se registra el escalon donde rompe |
+| stress-reads | Relecturas/s que aguanta la sala (H5) | `ramping-arrival-rate` 10/50/100/200/400 it/s; 1 it = `GET /rooms/:id` + `/state` + `/notifications` | 15 s + 1 min 45 s por escalon (10 min) | 200 est., 1 sala | p95 < 300 ms, sin iteraciones descartadas |
+| spike | Oleada repentina (apertura de sala, ultimo minuto) | `ramping-vus` 10 -> 200 en 10 s, 2 min, -> 10 | 2 min base, 4 min 40 s de recuperacion (10 min) | 200 est., 2 salas | p95 vuelve a la base; verify OK |
+| soak | Fugas y deriva | `ramping-vus` 60 en sala + 10 visitantes, 8 min 30 s | 1 min de subida (10 min) | 70 est., 1 sala, 6 rondas | memoria, event loop, conexiones y colas estables |
 | bid-storm | Contencion de pujas sobre una ronda (H1) | `constant-vus` `VUS`, 90 s | sin rampa | 100 est., 1 sala, 1 ronda | comparacion con `RESULTADOS.md` |
+
+**Duracion.** Cada escenario dura 10 min en total (salvo smoke y bid-storm), por decision del
+equipo. Consecuencias: los escalones de stress duran 1 min estable (suficiente para que la p95
+se asiente con la carga de este sistema, pero con menos muestras por escalon) y el soak de 10 min
+muestra deriva entre rondas, no fugas lentas; para eso se corre con `-e DURATION=45m`.
 
 **Por que cada executor.**
 - `ramping-vus` (modelo cerrado) para sala: un VU es una persona con su socket abierto, que es lo

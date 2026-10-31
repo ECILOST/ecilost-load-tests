@@ -2,8 +2,8 @@
 // o el ultimo minuto con anti-sniping atrae a todos). Mide si aguanta la subida brusca de
 // conexiones, room.join y pujas, y cuanto tarda en volver a la normalidad.
 //
-// BASE estudiantes en sala durante 1 m, sube a PEAK en SPIKE_RAMP, se mantiene SPIKE_HOLD,
-// baja a BASE en SPIKE_RAMP y se observa la recuperacion durante RECOVERY.
+// BASE estudiantes en sala durante 2 min, sube a PEAK en SPIKE_RAMP, se mantiene SPIKE_HOLD,
+// baja a BASE en SPIKE_RAMP y se observa la recuperacion durante RECOVERY. 10 min en total.
 //
 //   node scripts/run.mjs spike
 import { num, SUMMARY_TREND_STATS } from '../lib/config.js';
@@ -15,12 +15,12 @@ import { liveRoomSession } from '../flows/live-room.js';
 const BASE = num('BASE', 10);
 const PEAK = num('PEAK', 200);
 const SPIKE_RAMP = __ENV.SPIKE_RAMP || '10s';
-const SPIKE_HOLD = __ENV.SPIKE_HOLD || '1m';
-const RECOVERY = __ENV.RECOVERY || '3m';
+const SPIKE_HOLD = __ENV.SPIKE_HOLD || '2m';
+const RECOVERY = __ENV.RECOVERY || '4m40s';
 
 const { scenarios, maxVus } = userMix([
   { duration: '30s', target: BASE },
-  { duration: '1m', target: BASE },
+  { duration: '2m', target: BASE },
   { duration: SPIKE_RAMP, target: PEAK },
   { duration: SPIKE_HOLD, target: PEAK },
   { duration: SPIKE_RAMP, target: BASE },

@@ -104,17 +104,20 @@ genera el informe y guarda todo en `results/`. Lo que va despues de `--` se pasa
 
 ```bash
 docker compose run --rm runner stress -- -e STEPS=100,200,300
-docker compose run --rm runner soak -- -e DURATION=60m
+docker compose run --rm runner soak -- -e DURATION=45m
 ```
+
+Todos duran **10 minutos** salvo `smoke` (~1.5 min) y `bid-storm` (90 s); los tiempos se cambian
+con las variables de cada escenario (`docs/EJECUCION.md`).
 
 | Escenario | Que mide | Datos por defecto |
 |---|---|---|
 | `smoke` | scripts, datos y metricas funcionan (cero errores) | 5 estudiantes, 1 sala |
-| `load` | carga nominal: `USERS` en sala (100) + `BROWSERS` (20), 10 min estable | 120, 2 salas |
-| `stress` | escalones `STEPS` (50..400) hasta degradar, y recuperacion | 420, 2 salas |
+| `load` | carga nominal: `USERS` en sala (100) + `BROWSERS` (20), 7 min estables | 120, 2 salas |
+| `stress` | escalones `STEPS` (50..400) de 1 min hasta degradar, y recuperacion | 420, 2 salas |
 | `stress-reads` | relecturas/s que aguanta la sala (modelo abierto, `RATES`) | 200, 1 sala |
 | `spike` | `BASE` 10 -> `PEAK` 200 en 10 s y recuperacion | 200, 2 salas |
-| `soak` | `USERS` 60 durante 45 min: fugas y deriva | 70, 1 sala |
+| `soak` | `USERS` 60 constantes (8.5 min): deriva; con `DURATION` mayor, fugas lentas | 70, 1 sala |
 | `bid-storm` | contencion de pujas sobre una ronda (`VUS`) | 100, 1 sala |
 
 Estructura: `k6/lib` (configuracion, datos, API con checks, cliente Socket.IO, metricas y

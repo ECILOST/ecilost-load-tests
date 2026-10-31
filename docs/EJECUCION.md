@@ -50,15 +50,18 @@ tambien vale `node scripts/run.mjs <escenario>` (mismos argumentos).
 `report.mjs`, y guarda todo.
 Lo que va despues de `--` se pasa a k6 (variables `-e`). Variables por escenario:
 
+Con los valores por defecto load, stress, stress-reads, spike y soak duran 10 min cada uno (k6
+agrega hasta 30 s al final para cerrar sesiones); smoke ~1.5 min y bid-storm 90 s.
+
 | Escenario | Variables (por defecto) |
 |---|---|
 | todos los de sala | `BIDDER_RATIO` (0.3), `AUTOBID_RATIO` (0.1), `THINK_MIN`/`THINK_MAX` (3/10 s), `SESSION_MIN`/`SESSION_MAX` (180/420 s) |
 | smoke | `DURATION` (90s), `VIEWERS` (2), `BIDDERS` (2), `BROWSERS` (1) |
-| load | `USERS` (100), `BROWSERS` (20), `RAMP` (2m), `HOLD` (10m) |
-| stress | `STEPS` (50,...,400), `STEP_RAMP` (30s), `STEP_HOLD` (3m), `RECOVERY_USERS` (25), `RECOVERY` (3m), `BROWSERS` (20) |
-| stress-reads | `RATES` (10,...,400), `STEP` (2m), `MAX_VUS` (200) |
-| spike | `BASE` (10), `PEAK` (200), `SPIKE_RAMP` (10s), `SPIKE_HOLD` (1m), `RECOVERY` (3m) |
-| soak | `USERS` (60), `BROWSERS` (10), `DURATION` (45m) |
+| load | `USERS` (100), `BROWSERS` (20), `RAMP` (2m), `HOLD` (7m) |
+| stress | `STEPS` (50,...,400), `STEP_RAMP` (20s), `STEP_HOLD` (1m), `RECOVERY_USERS` (25), `RECOVERY` (1m20s), `BROWSERS` (20) |
+| stress-reads | `RATES` (10,...,400), `STEP` (1m45s), `MAX_VUS` (200) |
+| spike | `BASE` (10), `PEAK` (200), `SPIKE_RAMP` (10s), `SPIKE_HOLD` (2m), `RECOVERY` (4m40s) |
+| soak | `USERS` (60), `BROWSERS` (10), `DURATION` (8m30s) |
 | bid-storm | `VUS` (25), `THINK` (1), `DURATION` (90s) |
 
 Si un escenario pide mas VUs que estudiantes, falla al inicio: subir `--students` en `run.mjs`.

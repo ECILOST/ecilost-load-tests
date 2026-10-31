@@ -19,16 +19,17 @@ import { DATA_DIR, KEYS_DIR, parseArgs, readData, readKey, ROOT } from './lib/co
 
 /**
  * Datos por escenario: estudiantes (= VUs maximos del escenario, ver k6/lib/profiles.js),
- * salas y rondas. Las rondas sobran a proposito: con pujas continuas cada una se alarga hasta
- * 8 min por anti-sniping, sin pujas dura 3; la sala no debe terminar antes que la prueba.
+ * salas y rondas. Los escenarios duran 10 min (smoke y bid-storm menos). Las rondas sobran a
+ * proposito: con pujas continuas cada una se alarga hasta 8 min por anti-sniping, sin pujas dura
+ * 3; la sala no debe terminar antes que la prueba (6 rondas cubren 10 min en el peor caso).
  */
 const DEFAULTS = {
   smoke: { students: 5, rooms: 1, rounds: 2 },
   load: { students: 120, rooms: 2, rounds: 6 },
-  stress: { students: 420, rooms: 2, rounds: 10 },
+  stress: { students: 420, rooms: 2, rounds: 6 },
   'stress-reads': { students: 200, rooms: 1, rounds: 6 },
   spike: { students: 200, rooms: 2, rounds: 4 },
-  soak: { students: 70, rooms: 1, rounds: 20 },
+  soak: { students: 70, rooms: 1, rounds: 6 },
   'bid-storm': { students: 100, rooms: 1, rounds: 1 },
 };
 /** Saldo de sobra para que "fondos insuficientes" no aparezca por la duracion de la prueba. */
@@ -145,7 +146,8 @@ const meta = {
 writeFileSync(join(dir, 'meta.json'), JSON.stringify(meta, null, 2));
 
 step('Informe (k6 + Prometheus)');
-const report = spawnSync(process.execPath, [join(ROOT, 'scripts', 'report.mjs'), dir], { cwd: ROOT, encoding: 'utf8' });
+// Filas de 30 s: los escalones de stress duran 1 min y no deben mezclarse en una fila.
+const report = spawnSync(process.execPath, [join(ROOT, 'scripts', 'report.mjs'), dir, '--step', '30'], { cwd: ROOT, encoding: 'utf8' });
 if (report.status !== 0) console.log(`  No se pudo generar report.md: ${(report.stderr || report.stdout).trim().split('\n').pop()}`);
 
 step(`Resultados en ${dir}`);

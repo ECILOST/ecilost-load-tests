@@ -15,7 +15,8 @@ import { setupRun, teardownRun } from '../lib/lifecycle.js';
 import { ABORT_WHEN_DOWN } from '../lib/thresholds.js';
 
 const RATES = str('RATES', '10,50,100,200,400').split(',').map(Number);
-const STEP = __ENV.STEP || '2m';
+/** 5 escalones x (15 s + STEP) = 10 min por defecto. */
+const STEP = __ENV.STEP || '1m45s';
 const MAX_VUS = num('MAX_VUS', 200);
 
 const stages = RATES.flatMap((target) => [{ duration: '15s', target }, { duration: STEP, target }]);
