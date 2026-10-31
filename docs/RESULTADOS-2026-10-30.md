@@ -124,7 +124,7 @@ y E eventos/s una sala necesita N x E relecturas/s: 100 espectadores con 3 pujas
 | C1 | **auction satura su unico hilo** con ~100 en sala | Aplicacion | Utilizacion del event loop 100 %, CPU ~1 nucleo, req/s planas desde 120 usuarios |
 | C2 | **Amplificacion de lecturas (H5 confirmada)**: cada evento -> cada espectador relee sala, estado y notificaciones | Aplicacion (cliente + API) | Estres: 297 416 `GET /rooms/:id` + 239 277 `/state` contra 6 989 intentos de puja (77:1), medido en el servidor |
 | C3 | **`GET /rooms/:id` es caro**: unas 8 consultas por llamada (sala, participante, rondas, entradas, mi mejor puja, sobres, conteo de sobres, hora) | Aplicacion / BD | `roomDetailSelect` en `rooms.service.ts:25-50`; las 8 consultas con mas tiempo en Postgres durante el estres son todas de estas lecturas |
-| C4 | **Falta un indice**: "mi mejor puja" (`bids WHERE bidderId AND status AND roundId IN`) hace Seq Scan de toda la tabla `bids` | Base de datos | `EXPLAIN ANALYZE`: Seq Scan, 4 737 filas descartadas; es la consulta con mas tiempo total (80 s en estres) y crece con cada puja guardada |
+| C4 | **Falta un indice**: "mi mejor puja" (`bids WHERE bidderId AND status AND roundId IN`) no tiene indice por pujador | Base de datos | `EXPLAIN ANALYZE`: con la tabla chica, Seq Scan de toda la tabla; con 16 000 pujas, lee todas las pujas de las rondas de la sala (1 615) y descarta las ajenas (1 475) para devolver 140, 1.95 ms. Es la consulta con mas tiempo total (80 s en estres) y crece con las pujas de la sala |
 | C5 | Postgres llega a ~1 nucleo | Base de datos (consecuencia de C2-C4) | CPU postgres 0.93-1.10 con 100+ usuarios; sin esperas por lock ni deadlocks |
 | C6 | **El outbox abre una conexion AMQP por ciclo (H4 confirmada)** | Aplicacion / configuracion | 2 226 conexiones abiertas en 26 min de estres (~1 por cada 3 intentos de puja); RabbitMQ usa 0.48 nucleos con 25 usuarios (0.24 en reposo) |
 | C7 | El sondeo del outbox (200 ms) fija el piso de latencia del precio en vivo | Diseno | Mediana ~140 ms, p95 ~230 ms sin carga; la entrega del socket es solo 3-5 ms |
@@ -151,16 +151,20 @@ vuelve a ~190 MiB). **No hay prueba de resistencia todavia** (seccion 10).
 
 ## 10. Pendiente
 
-- **Resistencia (`soak`, 45 min)**: aplazada a pedido. Comando:
-  `docker compose run --rm runner soak` (o `-- -e DURATION=60m`). Debe mostrar si C4 degrada la
-  lectura con el tiempo y si hay fugas.
+- **Resistencia (`soak`)**: aplazada a pedido. Desde esta fecha los escenarios duran 10 min por
+  defecto: `docker compose run --rm runner soak` muestra deriva entre rondas; para fugas lentas,
+  `-- -e DURATION=45m`.
+
+Las corridas de este informe usaron los perfiles anteriores (load con 10 min estables, stress con
+escalones de 3 min); las siguientes usan los de 10 min en total (`ESTRATEGIA.md`).
 - Corrida con limites de Azure (seccion 9).
 - `bid-storm` con el codigo actual, para comparar con `RESULTADOS.md` (2026-10-16).
 
 ## 11. Recomendaciones (de mayor a menor impacto por esfuerzo)
 
-1. **Indice para "mi mejor puja"** (C4): `@@index([roundId, bidderId, status, amount(sort: Desc)])`
-   en `Bid`. Cambio de una migracion; quita el Seq Scan que crece con cada puja.
+1. **Indice para "mi mejor puja"** (C4): `@@index([bidderId, roundId])` en `Bid`. Cambio de una
+   migracion; la consulta deja de leer todas las pujas de la sala. **Implementado**: p95 HTTP -29 % y
+   CPU de Postgres -18 % con 100 en sala (seccion 12).
 2. **Cortar la amplificacion** (C2), la palanca mas grande:
    - el frontend ya recibe en `round.price` el precio, el lider y el cierre: aplicar el evento al
      estado local y releer solo en transiciones (`round.activated/closed`, `room.status`) o si se
@@ -183,3 +187,30 @@ vuelve a ~190 MiB). **No hay prueba de resistencia todavia** (seccion 10).
 
 Estas recomendaciones siguen la linea del proyecto: operaciones cortas y tiempo real en vez de
 transacciones mas pesadas.
+
+## 12. Despues de la recomendacion 1: indice `bids(bidderId, roundId)`
+
+Implementado en ecilost-auction-service (migracion `20261030000000_bids_bidder_round_index`).
+`EXPLAIN ANALYZE` de "mi mejor puja" con datos reales (16 000 pujas): de 1.95 ms leyendo 1 615
+filas por `bids_roundId_status_sequence_idx` a **0.25 ms** leyendo 169 por el indice nuevo.
+
+`load` con 100 en sala, k6 en el equipo en ambas corridas. Promedio de los intervalos con la carga
+completa (>= 115 VUs):
+
+| | Sin indice (`load-d21b0487`, 2026-10-30) | Con indice (`load-4476af0c`, 2026-10-31) | Cambio |
+|---|---|---|---|
+| req/s atendidas | 559 | 632 | +13 % |
+| p95 HTTP (todas) | 265 ms | 187 ms | -29 % |
+| p95 puja | 442 ms | 298 ms | -33 % |
+| p95 precio en vivo | 314 ms | 266 ms | -15 % |
+| `room.join` p95 | 268 ms | 109 ms | -59 % |
+| CPU auction / postgres (nucleos) | 0.93 / 0.91 | 0.80 / 0.75 | -14 % / -18 % |
+| Tiempo de "mi mejor puja" en Postgres | 2.2 s por minuto (la consulta mas costosa) | 0.43 s por minuto (la cuarta) | -80 % |
+
+Ambas corridas pasan todos los umbrales; `verify` sin fallas.
+
+Salvedades: una corrida de cada lado; la de referencia uso el perfil de 13 min (10 estables) y la
+nueva el de 10 min (7 estables); la base ya tenia mas pujas acumuladas en la segunda, lo que
+juega en contra del indice. **auction sigue llegando a 100 % de utilizacion del event loop** con
+100 en sala: el indice mueve el techo pero no lo quita. Lo siguiente con mas impacto son las
+recomendaciones 2 y 3 (amplificacion de lecturas y costo de `GET /rooms/:id`).
