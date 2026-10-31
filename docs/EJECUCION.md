@@ -55,7 +55,7 @@ agrega hasta 30 s al final para cerrar sesiones); smoke ~1.5 min y bid-storm 90 
 
 | Escenario | Variables (por defecto) |
 |---|---|
-| todos los de sala | `BIDDER_RATIO` (0.3), `AUTOBID_RATIO` (0.1), `THINK_MIN`/`THINK_MAX` (3/10 s), `SESSION_MIN`/`SESSION_MAX` (180/420 s) |
+| todos los de sala | `BIDDER_RATIO` (0.3), `AUTOBID_RATIO` (0.1), `THINK_MIN`/`THINK_MAX` (3/10 s), `SESSION_MIN`/`SESSION_MAX` (180/420 s), `CLIENT_READS` (`patch`: frontend actual, el precio en vivo no relee la sala; `legacy`: el anterior) |
 | smoke | `DURATION` (90s), `VIEWERS` (2), `BIDDERS` (2), `BROWSERS` (1) |
 | load | `USERS` (100), `BROWSERS` (20), `RAMP` (2m), `HOLD` (7m) |
 | stress | `STEPS` (50,...,400), `STEP_RAMP` (20s), `STEP_HOLD` (1m), `RECOVERY_USERS` (25), `RECOVERY` (1m20s), `BROWSERS` (20) |

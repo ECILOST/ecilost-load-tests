@@ -4,12 +4,17 @@
 // - al entrar: GET /wallet/me, GET /notifications y la lectura en vivo (GET /rooms/:id +
 //   GET /rooms/:id/state), y abre el socket /realtime con room.join;
 // - useRoom: GET /rooms/:id cada 5 s;
-// - por cada evento de la sala (coalescido: una lectura en curso y, si llegaron mas eventos,
-//   una mas al terminar): lectura en vivo + GET /notifications, y GET /wallet/me (otra vez a
-//   los 3 s) si cambio su liderazgo o su puja mas alta. Las peticiones son asincronas: el socket
-//   se sigue atendiendo mientras esperan, como en el navegador;
+// - `round.price` / `round.extended` de la ronda activa se pintan sin pedir nada (salvo si quien
+//   mira tiene puja automatica en ella); cualquier otro evento hace la lectura en vivo
+//   (coalescida: una en curso y, si llegaron mas eventos, una mas al terminar);
+// - si cambio su liderazgo, su puja mas alta o el estado de una ronda: GET /wallet/me y
+//   GET /notifications, y otra vez a los 3 s;
 // - respaldo de la lectura en vivo cada 15 s y GET /notifications cada 10 s.
+// Las peticiones son asincronas: el socket se sigue atendiendo mientras esperan.
 // (use-room.ts, use-live-room.ts, use-notifications.ts y http-auction.gateway.ts.)
+//
+// CLIENT_READS=legacy reproduce el frontend anterior (2026-10-30): cada evento releia sala,
+// estado y notificaciones. Sirve para comparar con las corridas de RESULTADOS-2026-10-30.md.
 //
 // El pujador hace lo mismo y ademas puja cada THINK_MIN..THINK_MAX segundos si no va ganando,
 // el precio vigente + 100..500, como alguien que mira y reacciona. Tras pujar relee la sala,
@@ -17,7 +22,7 @@
 import { sleep } from 'k6';
 import { setInterval, setTimeout, clearInterval, clearTimeout } from 'k6/timers';
 import { getNotifications, getRoom, getRoomState, getWallet, enableAutoBid, placeBid } from '../lib/api.js';
-import { num } from '../lib/config.js';
+import { num, str } from '../lib/config.js';
 import { currentStudent } from '../lib/data.js';
 import {
   bidToPrice, eventDelivery, priceEventsMissed, pricePropagation, roundCloseLag, wsJoin, wsJoinOk,
@@ -32,6 +37,8 @@ const THINK_MAX = num('THINK_MAX', 10);
 const AUTOBID_RATIO = num('AUTOBID_RATIO', 0.1);
 /** Un precio aceptado que no llega por el socket en este tiempo cuenta como perdido. */
 const PRICE_EVENT_TIMEOUT_MS = 10_000;
+/** `legacy`: el frontend anterior, que releia todo en cada evento. */
+const LEGACY_READS = str('CLIENT_READS', 'patch') === 'legacy';
 
 const between = (min, max) => min + Math.random() * (max - min);
 
@@ -62,11 +69,15 @@ export async function liveRoomSession(data, role) {
   let client = null;
   let reading = null;
   let readAgain = false;
+  /** Si quien mira lidera la ronda activa, segun lo ultimo pintado. */
+  let leading = false;
   const wantsAutoBid = role === 'bidder' && Math.random() < AUTOBID_RATIO;
 
-  function refreshWallet() {
-    getWallet(me.token);
-    timers.push(setTimeout(() => !ended && getWallet(me.token), 3000));
+  /** Saldo (y bandeja, en el frontend actual) cuando cambia algo de quien mira. */
+  function refreshMine() {
+    const read = () => (LEGACY_READS ? getWallet(me.token) : Promise.all([getWallet(me.token), getNotifications(me.token)]));
+    read();
+    timers.push(setTimeout(() => !ended && read(), 3000));
   }
 
   /** La lectura en vivo (`live()` en http-auction.gateway.ts): detalle y luego estado. */
@@ -79,15 +90,16 @@ export async function liveRoomSession(data, role) {
       if (round) endsAtByRound.set(round.id, round.endsAt);
     }
     const next = walletSignature(room);
-    if (signature !== null && next !== signature) refreshWallet();
+    if (signature !== null && next !== signature) refreshMine();
     signature = next;
+    leading = round?.currentBidderId === me.id;
     if (room?.status === 'CLOSED') end();
     return room;
   }
 
   /**
    * `coalesce()` del frontend: una lectura en curso a la vez; si llegan eventos mientras tanto,
-   * una mas al terminar. Cada lectura disparada por un evento relee tambien las notificaciones.
+   * una mas al terminar. En `legacy`, cada lectura relee tambien las notificaciones.
    */
   function refresh() {
     if (reading) {
@@ -97,7 +109,7 @@ export async function liveRoomSession(data, role) {
     reading = (async () => {
       do {
         readAgain = false;
-        await Promise.all([liveRead(), getNotifications(me.token)]);
+        await (LEGACY_READS ? Promise.all([liveRead(), getNotifications(me.token)]) : liveRead());
       } while (readAgain && !ended);
     })().finally(() => {
       reading = null;
@@ -147,6 +159,17 @@ export async function liveRoomSession(data, role) {
       if (lag >= 0) roundCloseLag.add(lag);
     }
     if (name === 'room.status' && payload.status === 'CLOSED') end();
+
+    // Precio o extension de la ronda activa: se pinta tal como llega (canApplyPrice).
+    const applies = !LEGACY_READS && (name === 'round.price' || name === 'round.extended') && round
+      && payload.roundId === round.id && round.status === 'ACTIVE' && autoBidRoundId !== round.id;
+    if (applies) {
+      if (name === 'round.price' && (payload.currentBidderId === me.id) !== leading) {
+        leading = payload.currentBidderId === me.id;
+        refreshMine();
+      }
+      return;
+    }
     refresh();
   }
 
@@ -167,7 +190,7 @@ export async function liveRoomSession(data, role) {
         }
       }
       // Como la mutacion del frontend: relee la sala, las notificaciones y el saldo.
-      await Promise.all([refresh(), getWallet(me.token)]);
+      await Promise.all([refresh(), getWallet(me.token), ...(LEGACY_READS ? [] : [getNotifications(me.token)])]);
     }
     if (!ended) bidTimer = setTimeout(tryBid, between(THINK_MIN, THINK_MAX) * 1000);
   }

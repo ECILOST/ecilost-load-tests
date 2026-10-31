@@ -31,7 +31,7 @@ Derivado del codigo del frontend (`use-room.ts`, `use-live-room.ts`, `use-notifi
 
 | Rol | Que hace | Archivo |
 |---|---|---|
-| Espectador en sala | Socket `/realtime` + `room.join`; `GET /rooms/:id` cada 5 s; por cada evento (coalescido) `GET /rooms/:id` + `/state` + `/notifications` y `GET /wallet/me` si cambio su liderazgo; respaldo cada 15 s; notificaciones cada 10 s | `k6/flows/live-room.js` |
+| Espectador en sala | Socket `/realtime` + `room.join`; `GET /rooms/:id` cada 5 s; `round.price`/`round.extended` de la ronda activa se pintan sin pedir nada; los demas eventos (coalescidos) hacen `GET /rooms/:id` + `/state`; si cambia su liderazgo, puja mas alta o estado de ronda, `GET /wallet/me` + `/notifications` (y otra vez a los 3 s); respaldo cada 15 s; notificaciones cada 10 s. Con `CLIENT_READS=legacy`, el frontend anterior (cada evento relee sala, estado y notificaciones) | `k6/flows/live-room.js` |
 | Pujador | Lo mismo + puja cada 3-10 s si no va ganando (precio + 100..500); 10 % activa puja automatica | `k6/flows/live-room.js` |
 | Visitante del catalogo | Listado (`GET /rooms`, detalle en lote, fichas de catalog cada 5 min), una ficha releida cada 5 s durante 15-40 s | `k6/flows/browse.js` |
 
