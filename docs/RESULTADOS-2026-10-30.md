@@ -270,3 +270,45 @@ de los 3 min de la seccion 5):
 
 Con esto la estimacion para Azure de la seccion 9 queda desactualizada: con 0.25 vCPU auction ya no
 satura en ~25-30 estudiantes. Hay que medirla con `SERVICE_CPUS=0.25 SERVICE_MEMORY=512m`.
+
+## 14. Con los limites de Azure Container Apps (0.25 vCPU, 0.5 GiB por servicio)
+
+`SERVICE_CPUS=0.25 SERVICE_MEMORY=512m docker compose up -d --wait`, verificado con
+`docker inspect` (NanoCpus 250 000 000, 512 MiB en los cinco servicios). Postgres y RabbitMQ sin
+limite (en Azure son Neon y CloudAMQP). Codigo con el indice (seccion 12) y el cliente que aplica
+el precio (seccion 13). Corridas: `stress-e05e6cec`, `load-7744b9f9` (50), `load-1f1436af` (100).
+
+| En sala | p95 HTTP | p95 `GET /rooms/:id` | p95 puja | Precio en vivo p95 | Umbrales | Estado de auction |
+|---|---|---|---|---|---|---|
+| 50 (load) | 86 ms | 128 ms | 278 ms | 281 ms | **todos cumplidos** | utilizacion del event loop max 9 % |
+| 100 (load) | 473 ms | 645 ms | 960 ms | 603 ms (max 1.7 s) | lecturas no (p95 > 300 ms) | **100 %** |
+| 150 (stress) | 1.7-1.8 s | | 3-3.6 s | 1.1-1.5 s | no | 0.25 nucleos fijos |
+| 200-400 (stress) | 3-56 s, timeouts de 60 s | | hasta 60 s | sin dato util | no; 0.3-0.5 % de errores | 0.25 nucleos fijos |
+
+- **Capacidad estimada en Azure con una replica: ~50 estudiantes en sala con holgura; ~100 es el
+  limite** (auction saturado, lecturas lentas, pero sin errores y con el tiempo real p95 < 1 s);
+  desde ~150 el servicio se degrada y desde ~200 colapsa.
+- **El limite de CPU agrega latencia aun con poca carga**: con 50 en sala la p95 es ~10 veces la
+  del mismo escalon del estres sin limite (6-7 ms contra 77-100 ms), y el event loop p99 marca ~100 ms en reposo. Es el mecanismo de
+  cuotas de CPU (CFS) pausando el proceso, no trabajo de la aplicacion.
+- **Nueva falla bajo saturacion: rondas que cierran hasta 149 s tarde** (estres, escalones de 200+).
+  El scheduler de 500 ms registro 24 veces `Unable to start a transaction in the given time`: las
+  peticiones lentas retienen las 10 conexiones del pool y el scheduler no consigue una. El
+  requisito de transicion de ronda < 1 s se rompe. Con 100 en sala (load) los cierres fueron a
+  tiempo (179 ms).
+- auction estuvo frenado por cuota de CPU en el **73 %** de los periodos del estres (796 s);
+  los demas servicios, casi ociosos, en ~13 %. engagement acumulo 291 timeouts (3 s) verificando
+  salas con auction en `room.join`, por eso `ws_join_ok` no se cumplio en el estres.
+- Recuperacion: al bajar a 25 usuarios la cola tardo ~1 min en vaciarse; luego p95 81 ms. Sin
+  reinicios.
+
+Lo que esto **no** reproduce: la latencia de red a Neon y CloudAMQP, sus limites de conexiones y
+de mensajes del plan gratuito, ni el arranque en frio de DEV (escala a cero). Azure real puede
+rendir peor.
+
+Recomendaciones que agrega esta corrida:
+- **Pool o conexion propia para el scheduler** de auction (o un `transaction maxWait` mayor solo
+  para el), para que la carga de lectura no pueda retrasar el cierre de rondas. Es la falla mas
+  grave encontrada: rompe el requisito de tiempo real justo cuando hay mas gente.
+- Subir la CPU de auction a 0.5 vCPU (el resto puede quedar en 0.25) duplicaria el margen; escalar
+  a varias replicas exige antes lo dicho en la recomendacion 7.
