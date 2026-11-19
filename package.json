@@ -1,6 +1,6 @@
 {
   "name": "ecilost-load-tests",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Pruebas de rendimiento de ECILOST (k6, Prometheus, Grafana) contra un entorno local aislado en Docker",
   "private": true,
   "type": "module",
