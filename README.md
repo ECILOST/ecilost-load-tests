@@ -3,6 +3,8 @@
 Pruebas de carga de ECILOST contra el entorno **local** (Docker), con bases de datos aisladas
 para no tocar los datos de desarrollo.
 
+Esta guía corresponde a `develop`, donde se inicia cada servicio con `scripts/start-service.mjs`. El entorno Compose integral y los tableros de la versión publicada están documentados en la rama `main`.
+
 El backlog no fija metas de rendimiento (supuesto A4: "no se inventa ningun SLA"). Por eso estas
 pruebas **miden y reportan** latencias y capacidad, y solo hacen fallar una corrida por:
 
@@ -65,6 +67,20 @@ node scripts/setup.mjs --scenario smoke --students 5 --starts-in 8 --wait-active
 node scripts/smoke.mjs
 node scripts/verify.mjs
 ```
+
+### Carga de pujas con k6
+
+Prepara una sala nueva y genera un token por usuario virtual. El siguiente ejemplo prueba 25 estudiantes durante 90 segundos.
+
+```bash
+mkdir -p results
+node scripts/tokens.mjs --students 25
+node scripts/setup.mjs --scenario bid-storm --students 25 --capacity 25 --wait-active
+k6 run -e VUS=25 -e DURATION=90s --summary-export results/bid-storm-25.json k6/bid-storm.js
+node scripts/verify.mjs
+```
+
+El JSON de k6 contiene las métricas de la corrida. El verificador revisa las invariantes de la sala y de las billeteras en la base. Para comparar una corrida con las mediciones existentes, consulta [los resultados documentados](docs/RESULTADOS.md).
 
 ### `setup.mjs`
 
