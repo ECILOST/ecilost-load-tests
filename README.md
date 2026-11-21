@@ -4,7 +4,7 @@ Pruebas de rendimiento de ECILOST (k6 + Prometheus + Grafana) contra un entorno 
 Docker, con bases de datos aisladas para no tocar los datos de desarrollo. Documentacion completa
 en `docs/` (`AUDITORIA.md`, `ESTRATEGIA.md`, `EJECUCION.md`).
 
-Esta guía corresponde a `develop`, donde se inicia cada servicio con `scripts/start-service.mjs`. El entorno Compose integral y los tableros de la versión publicada están documentados en la rama `main`.
+Las ramas `develop` y `main` incluyen el entorno Compose integral y los tableros. Como alternativa para depurar, cada servicio se puede iniciar con `scripts/start-service.mjs`.
 
 El backlog no fija metas de rendimiento (supuesto A4: "no se inventa ningun SLA"). Por eso estas
 pruebas **miden y reportan** latencias y capacidad, y solo hacen fallar una corrida por:
@@ -222,7 +222,7 @@ Prepara una sala nueva y genera un token por usuario virtual. El siguiente ejemp
 mkdir -p results
 node scripts/tokens.mjs --students 25
 node scripts/setup.mjs --scenario bid-storm --students 25 --capacity 25 --wait-active
-k6 run -e VUS=25 -e DURATION=90s --summary-export results/bid-storm-25.json k6/bid-storm.js
+k6 run -e VUS=25 -e DURATION=90s --summary-export results/bid-storm-25.json k6/scenarios/bid-storm.js
 node scripts/verify.mjs
 ```
 
