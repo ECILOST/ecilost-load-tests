@@ -10,6 +10,7 @@
 //   44/realtime,{message}    conexion rechazada (token invalido)
 //   42/realtime,<id>[ev,..]  evento (con id si espera ack);  43/realtime,<id>[..] ack
 import { WebSocket } from 'k6/websockets';
+import { setTimeout, clearTimeout } from 'k6/timers';
 import { REALTIME_URL } from './config.js';
 import { wsConnect, wsErrors, wsEvents } from './metrics.js';
 
@@ -82,7 +83,8 @@ export class RealtimeClient {
     const id = this.nextAck;
     this.nextAck += 1;
     return new Promise((resolve) => {
-      this.acks.set(id, resolve);
+      const timer = setTimeout(() => { this.acks.delete(id); resolve(null); }, 5000);
+      this.acks.set(id, (value) => { clearTimeout(timer); resolve(value); });
       this.ws.send(`42${NAMESPACE},${id}${JSON.stringify([name, payload])}`);
     });
   }

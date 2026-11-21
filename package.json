@@ -8,6 +8,8 @@
     "node": ">=22"
   },
   "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "smoke:journey": "node scripts/journey-smoke.mjs",
     "up": "docker compose up -d --build --wait",
     "down": "docker compose down",
     "scenario": "docker compose run --rm runner",
