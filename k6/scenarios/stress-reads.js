@@ -5,10 +5,13 @@
 // Una iteracion es exactamente lo que hace cada espectador por cada evento de la sala:
 // GET /rooms/:id + GET /rooms/:id/state + GET /notifications. Con N espectadores y E eventos
 // por segundo la sala necesita N x E de estas por segundo; el resultado dice cuantas aguanta.
+// La adaptación actual añade GET /rooms/:id/activity y las lecturas periódicas de engagement.
+// Para reproducir la base anterior: CLIENT_READS=legacy y EXTENDED_READS=false.
 //
 //   node scripts/run.mjs stress-reads
 //   node scripts/run.mjs stress-reads -- -e RATES=20,100,300 -e STEP=1m
-import { getNotifications, getRoom, getRoomState } from '../lib/api.js';
+import { getActivity, getNotifications, getRoom, getRoomState } from '../lib/api.js';
+import { engagementReads } from '../flows/engagement.js';
 import { num, str, SUMMARY_TREND_STATS } from '../lib/config.js';
 import { currentStudent } from '../lib/data.js';
 import { setupRun, teardownRun } from '../lib/lifecycle.js';
@@ -53,5 +56,7 @@ export async function refresh() {
   await Promise.all([
     getRoom(me.token, me.roomId).then(() => getRoomState(me.token, me.roomId)),
     getNotifications(me.token),
+    ...(__ENV.CLIENT_READS === 'legacy' ? [] : [getActivity(me.token, me.roomId)]),
+    engagementReads(me.token),
   ]);
 }

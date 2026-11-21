@@ -98,3 +98,26 @@ export const getWallet = (token) => get(`${SERVICE_URL.wallet}/me`, token, 'GET 
 
 export const getNotifications = (token) =>
   get(`${SERVICE_URL.engagement}/notifications`, token, 'GET /notifications', (body) => Array.isArray(body.items));
+
+export const getActivity = (token, roomId) =>
+  get(`${SERVICE_URL.engagement}/rooms/${roomId}/activity`, token, 'GET /rooms/:id/activity', (body) => Array.isArray(body.items));
+export const getProfile = (token) => get(`${SERVICE_URL.engagement}/profiles/me`, token, 'GET /profiles/me', (body) => typeof body.alias === 'string' && body.stats !== undefined);
+export const getLeaderboard = (token) => get(`${SERVICE_URL.engagement}/leaderboard?week=current`, token, 'GET /leaderboard', (body) => Array.isArray(body.entries));
+export const getPickups = (token) => get(`${SERVICE_URL.engagement}/pickups/mine`, token, 'GET /pickups/mine', Array.isArray);
+export const getPickupSlots = (token) => get(`${SERVICE_URL.engagement}/pickups/slots`, token, 'GET /pickups/slots', Array.isArray);
+export const getMysteryClues = (token, roundId) => get(`${SERVICE_URL.catalog}/mystery/rounds/${roundId}`, token, 'GET /mystery/rounds/:id', (body) => Array.isArray(body.entries));
+export const getSealedResults = (token, roundId) => get(`${SERVICE_URL.auction}/rounds/${roundId}/sealed-results`, token, 'GET /rounds/:id/sealed-results', (body) => Array.isArray(body.ranking));
+
+/** A conflict is expected only for commands that race over a round's state. */
+export async function roundCommand(token, roundId, action, body) {
+  const name = `POST /rounds/:id/${action}`;
+  const response = await http.asyncRequest('POST', `${SERVICE_URL.auction}/rounds/${roundId}/${action}`, body === undefined ? null : JSON.stringify(body), {
+    headers: headers(token, body !== undefined), tags: { name }, responseCallback: http.expectedStatuses(201, 409),
+  });
+  const value = json(response);
+  check(response, {
+    [`${name} 201 o 409`]: (r) => r.status === 201 || r.status === 409,
+    [`${name} recibo de la ronda`]: (r) => r.status !== 201 || value?.roundId === roundId,
+  });
+  return { status: response.status, body: value };
+}

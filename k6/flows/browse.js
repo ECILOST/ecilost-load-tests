@@ -11,6 +11,7 @@ import { sleep } from 'k6';
 import { getNotifications, getRoom, getWallet, listItemsByIds, listLotsByIds, listOpenRoomsWithRounds, listRooms } from '../lib/api.js';
 import { num } from '../lib/config.js';
 import { currentStudent } from '../lib/data.js';
+import { engagementReads } from './engagement.js';
 
 const DETAIL_MIN = num('DETAIL_MIN', 15);
 const DETAIL_MAX = num('DETAIL_MAX', 40);
@@ -41,6 +42,7 @@ async function catalogList(token) {
 
 export async function browseCatalog() {
   const me = currentStudent();
+  await engagementReads(me.token);
   if (entriesFetchedAt === 0) {
     await Promise.all([getWallet(me.token), getNotifications(me.token)]);
   }

@@ -143,15 +143,25 @@ const trend = (name) => {
 const endpointRows = Object.keys(summary.metrics)
   .filter((k) => k.startsWith('http_req_duration{name:'))
   .map((k) => `| ${k.slice('http_req_duration{name:'.length, -1)} | ${trend(k)} |`);
+// Include routes without an SLA threshold: k6's summary only materializes tagged submetrics
+// that have thresholds, while Prometheus keeps the histogram for every named HTTP route.
+const routeHistogram = `sum by (name)(last_over_time(k6_http_req_duration_seconds{${K6}}[${window}]))`;
+const [clientRouteCounts, clientRouteP95] = await Promise.all([
+  query(`histogram_count(${routeHistogram})`),
+  query(`histogram_quantile(0.95, ${routeHistogram})`),
+]);
+const clientRouteRows = clientRouteCounts
+  .sort((a, b) => a.labels.name.localeCompare(b.labels.name))
+  .map((row) => `| ${row.labels.name} | ${Math.round(row.value)} | ${ms(clientRouteP95.find((p) => p.labels.name === row.labels.name)?.value)} |`);
 const thresholds = Object.entries(summary.metrics)
   .filter(([, m]) => m.thresholds)
-  .flatMap(([name, m]) => Object.entries(m.thresholds).map(([rule, crossed]) => `| ${name} | \`${rule}\` | ${crossed ? '**NO**' : 'si'} |`));
+  .flatMap(([name, m]) => Object.entries(m.thresholds).map(([rule, crossed]) => `| ${name} | \`${rule}\` | ${samples.get(name) === 0 ? 'sin muestras' : crossed ? '**NO**' : 'si'} |`));
 const counter = (name) => metric(name)?.count ?? 0;
 const verify = readFileSync(join(dir, 'verify.txt'), 'utf8').trim().split('\n').filter((l) => /FALLA|AVISO|Sin fallas|FALLA\(S\)/.test(l));
 
 const md = `# ${meta.testid}
 
-- Ventana: ${meta.startedAt} -> ${meta.finishedAt} (${Math.round((end - start) / 60)} min)
+- Ventana: ${meta.startedAt} -> ${meta.finishedAt} (${Math.round(end - start)} s; incluye setup/teardown de k6 y cierre de conexiones)
 - Datos: ${meta.data.students} estudiantes, ${meta.data.rooms} sala(s), ${meta.data.rounds} ronda(s); args k6: \`${meta.k6Args.join(' ') || '(por defecto)'}\`
 - k6 exit ${meta.k6Exit}, verify exit ${meta.verifyExit}
 - Grafana: ${meta.grafana}
@@ -187,6 +197,14 @@ ${verify.map((l) => `- ${l.trim()}`).join('\n')}
 |---|---|
 ${endpointRows.join('\n')}
 | **Todas** | ${trend('http_req_duration')} |
+
+### Rutas HTTP registradas en Prometheus
+
+Incluye rutas sin umbral propio. Percentiles estimados a partir de histogramas nativos.
+
+| Endpoint | Muestras | p95 |
+|---|---|---|
+${clientRouteRows.join('\n')}
 
 | Tiempo real | |
 |---|---|

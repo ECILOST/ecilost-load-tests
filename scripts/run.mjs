@@ -31,6 +31,8 @@ const DEFAULTS = {
   spike: { students: 200, rooms: 2, rounds: 4 },
   soak: { students: 70, rooms: 1, rounds: 6 },
   'bid-storm': { students: 100, rooms: 1, rounds: 1 },
+  'pickup-load': { students: 10, rooms: 1, rounds: 10, 'buy-now': 500 },
+  'pickup-stress': { students: 20, rooms: 1, rounds: 20, 'buy-now': 500 },
 };
 /** Saldo de sobra para que "fondos insuficientes" no aparezca por la duracion de la prueba. */
 const RECHARGE = 10_000_000;
@@ -46,6 +48,10 @@ if (!DEFAULTS[scenario]) {
   process.exit(1);
 }
 const args = { ...DEFAULTS[scenario], ...parseArgs(ownArgs) };
+if (scenario.startsWith('pickup-')) {
+  if (args.students > 500) throw new Error('Pickup slot capacity is limited to 500: split larger tests into independent runs.');
+  args.rounds = Math.ceil(args.students / args.rooms);
+}
 const step = (text) => console.log(`\n[${new Date().toISOString().slice(11, 19)}] ${text}`);
 
 function node(script, scriptArgs) {
@@ -67,8 +73,11 @@ if (!args['skip-setup']) {
   step(`Datos: ${args.students} estudiantes, ${args.rooms} sala(s), ${args.rounds} ronda(s)`);
   node('setup.mjs', [
     '--scenario', scenario, '--students', String(args.students), '--rooms', String(args.rooms),
-    '--rounds', String(args.rounds), '--recharge', String(RECHARGE), '--starts-in', '10', '--wait-active',
+    '--rounds', String(args.rounds), '--recharge', String(RECHARGE), '--starts-in', String(args['starts-in'] ?? 30), '--wait-active',
+    ...(args.dynamic === true || args.dynamic === 'true' ? ['--dynamic'] : []),
+    ...(args['buy-now'] !== undefined ? ['--buy-now', String(args['buy-now'])] : []),
   ]);
+  if (scenario.startsWith('pickup-')) node('prepare-pickups.mjs', []);
 }
 const run = readData('run.json');
 const testid = `${scenario}-${run.runId}`;

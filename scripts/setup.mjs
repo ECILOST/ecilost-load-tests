@@ -21,6 +21,7 @@ const buyNowPrice = args['buy-now'] === undefined ? undefined : Number(args['buy
 const recharge = Number(args.recharge ?? 0);
 const startsInSeconds = Number(args['starts-in'] ?? 20);
 const admit = args.admit !== 'false';
+const dynamic = args.dynamic === true || args.dynamic === 'true';
 const runId = randomUUID().slice(0, 8);
 
 const tokens = readData('tokens.json');
@@ -49,7 +50,7 @@ if (recharge > 0) {
 
 // 2-4. Por sala: un objeto de catalog por ronda, la sala (se abre sola en `startsInSeconds`)
 //      y la admision previa al inicio (HU-16/17: despues del inicio nadie entra).
-const startsAt = new Date(Date.now() + startsInSeconds * 1000).toISOString();
+let startsAt;
 const rooms = [];
 for (let index = 0; index < roomCount; index += 1) {
   const label = roomCount > 1 ? `${scenario} sala ${index + 1}` : scenario;
@@ -71,6 +72,8 @@ for (let index = 0; index < roomCount; index += 1) {
     );
   }
 
+  // Start the admission window after catalog preparation, not before all rooms are built.
+  startsAt = new Date(Date.now() + startsInSeconds * 1000).toISOString();
   step(`${label}: sala con ${roundCount} ronda(s), aforo ${capacity}, inicia ${startsAt}`);
   const room = await request('POST', `${SERVICE_URL.auction}/rooms`, {
     token: staff.token,
@@ -87,6 +90,19 @@ for (let index = 0; index < roomCount; index += 1) {
   });
 
   let admitted = 0;
+  if (dynamic) {
+    await request('PATCH', `${SERVICE_URL.auction}/rooms/${room.id}/dynamic-modes`, { token: staff.token, body: { enabled: true } });
+    for (const round of room.rounds) {
+      let selected;
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        selected = await request('POST', `${SERVICE_URL.auction}/rooms/${room.id}/rounds/${round.id}/spin`, { token: staff.token });
+        if (!selected.canSpinAgain) break;
+      }
+      if (!selected.mode) throw new Error('La ruleta no asignó modalidad dentro del límite de preparación.');
+      round.mode = selected.mode;
+      step(`Ronda ${round.position}: modalidad real ${selected.mode}`);
+    }
+  }
   if (admit) {
     step(`${label}: admision de ${members.length} estudiantes`);
     await inBatches(members, 20, async (student) => {
@@ -100,7 +116,7 @@ for (let index = 0; index < roomCount; index += 1) {
     capacity,
     admitted,
     rounds: room.rounds.map((round) => ({
-      id: round.id, position: round.position, startingPrice: Number(round.startingPrice), buyNowPrice: round.buyNowPrice == null ? null : Number(round.buyNowPrice),
+      id: round.id, position: round.position, mode: round.mode ?? 'CLASSIC', startingPrice: Number(round.startingPrice), buyNowPrice: round.buyNowPrice == null ? null : Number(round.buyNowPrice),
     })),
     students: members.map((student) => student.id),
   });
@@ -124,9 +140,11 @@ step(`Listo: ${rooms.length} sala(s), ${rooms.reduce((sum, room) => sum + room.a
 if (args['wait-active']) {
   step('Esperando a que las salas se abran...');
   for (const room of rooms) {
+    const deadline = Date.now() + 120_000;
     for (;;) {
       const detail = await request('GET', `${SERVICE_URL.auction}/rooms/${room.roomId}`, { token: staff.token });
       if (detail.status === 'ACTIVE') break;
+      if (Date.now() > deadline || detail.status === 'CLOSED') throw new Error(`La sala ${room.roomId} no llegó a ACTIVE dentro del límite.`);
       await sleep(500);
     }
   }
