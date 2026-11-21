@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: ecilost
+    folder: ECILOST
+    type: file
+    # Los tableros se versionan en observability/grafana/dashboards; los cambios en la UI no se
+    # guardan alli: exporta el JSON y reemplaza el archivo.
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

@@ -11,6 +11,7 @@ export class HttpError extends Error {
 export async function request(method, url, { token, body } = {}) {
   const response = await fetch(url, {
     method,
+    signal: AbortSignal.timeout(30_000),
     headers: {
       ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...(body !== undefined ? { 'content-type': 'application/json' } : {}),

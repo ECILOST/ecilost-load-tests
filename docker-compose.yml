@@ -1,0 +1,49 @@
+# Entorno completo de pruebas de rendimiento de ECILOST: el sistema bajo prueba, Prometheus,
+# Grafana y el ejecutor de k6. Solo hace falta Docker y los repos de los servicios clonados junto
+# a este (../ecilost-<servicio>-service); ni Node, ni k6, ni los .env de los servicios.
+#
+#   docker compose up -d --build --wait          sistema + observabilidad (Grafana en :3300)
+#   docker compose run --rm runner smoke         un escenario (smoke, load, stress, ...)
+#   docker compose down                          apagar (agrega -v para borrar datos y series)
+#
+# Ver docs/EJECUCION.md.
+name: ecilost-load
+
+include:
+  - compose/docker-compose.yml
+  - observability/docker-compose.yml
+
+services:
+  # Ejecutor de escenarios: `docker compose run --rm runner <escenario> [opciones] [-- args de k6]`.
+  # Corre scripts/run.mjs con k6 dentro de la red del proyecto, asi que llega a los servicios y a
+  # Prometheus por nombre. No arranca con `up` (perfil tools).
+  runner:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: docker/runner.Dockerfile
+    image: ecilost-load/runner
+    environment:
+      AUTH_URL: http://auth:3000
+      CATALOG_URL: http://catalog:3001
+      WALLET_URL: http://wallet:3002/wallet
+      AUCTION_URL: http://auction:3003
+      ENGAGEMENT_URL: http://engagement:3005
+      LOAD_POSTGRES_URL: postgresql://ecilost:ecilost@postgres:5432
+      PROMETHEUS_URL: http://prometheus:9090
+      K6_PROMETHEUS_RW_SERVER_URL: http://prometheus:9090/api/v1/write
+      # El enlace que queda en meta.json se abre desde el navegador del equipo.
+      GRAFANA_URL: http://localhost:3300
+    volumes:
+      # El repo entero: escenarios editables sin reconstruir; .data y results quedan en el equipo.
+      - .:/app
+      - /app/node_modules
+      # Para guardar los logs de los servicios de cada corrida (docker logs).
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      auction:
+        condition: service_healthy
+      engagement:
+        condition: service_healthy
+      prometheus:
+        condition: service_started

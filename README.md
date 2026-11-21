@@ -1,7 +1,8 @@
 # ecilost-load-tests
 
-Pruebas de carga de ECILOST contra el entorno **local** (Docker), con bases de datos aisladas
-para no tocar los datos de desarrollo.
+Pruebas de rendimiento de ECILOST (k6 + Prometheus + Grafana) contra un entorno **local** en
+Docker, con bases de datos aisladas para no tocar los datos de desarrollo. Documentacion completa
+en `docs/` (`AUDITORIA.md`, `ESTRATEGIA.md`, `EJECUCION.md`).
 
 Esta guía corresponde a `develop`, donde se inicia cada servicio con `scripts/start-service.mjs`. El entorno Compose integral y los tableros de la versión publicada están documentados en la rama `main`.
 
@@ -12,54 +13,199 @@ pruebas **miden y reportan** latencias y capacidad, y solo hacen fallar una corr
 - las garantias de concurrencia del dominio: un unico ganador, ECICoin nunca comprometidos dos
   veces, aforo nunca superado e historial de pujas estrictamente creciente (`scripts/verify.mjs`).
 
+## Inicio rapido (solo Docker)
+
+Requisitos: **Docker** (Desktop o Engine con Compose v2.20+) y los repos de ECILOST clonados en la
+misma carpeta. No hace falta Node, k6, `npm install` ni los `.env` de los servicios.
+
+```
+ECILOST/
+  ecilost-auth-service/   ecilost-catalog-service/   ecilost-wallet-service/
+  ecilost-auction-service/   ecilost-engagement-service/   ecilost-frontend/
+  ecilost-load-tests/      <- este repo
+```
+
+Desde `ecilost-load-tests`:
+
+```bash
+docker compose up -d --build --wait            # sistema + Prometheus + Grafana (primera vez: varios minutos)
+docker compose run --rm runner smoke           # prueba de humo
+docker compose run --rm runner load -- -e USERS=50
+```
+
+- Grafana: http://localhost:3300 (carpeta ECILOST; ver sin login, editar con admin/admin).
+- Prometheus: http://localhost:9090.
+- Resultados de cada corrida: `results/<escenario>-<fecha>-<runId>/` (`report.md`, `k6.txt`,
+  `verify.txt`, `meta.json` con el enlace a Grafana en la ventana de la corrida).
+- Con los limites de Azure Container Apps (0.25 vCPU / 0.5 GiB por servicio):
+  `SERVICE_CPUS=0.25 SERVICE_MEMORY=512m docker compose up -d --build --wait`.
+- Apagar: `docker compose down` (con `-v` borra bases y series).
+
+Que hay en `docker-compose.yml`:
+
+| Parte | Archivo | Contenido |
+|---|---|---|
+| Sistema bajo prueba | `compose/docker-compose.yml` | Postgres 17.11, RabbitMQ 4.3.6, Azurite, `keygen` y los cinco servicios construidos con su Dockerfile |
+| Observabilidad | `observability/docker-compose.yml` | Prometheus, Grafana (tableros ya cargados), cAdvisor, postgres_exporter |
+| Ejecutor | `docker-compose.yml` (`runner`, perfil `tools`) | Node 22 + k6 2.2.0 + cliente Docker (`docker/runner.Dockerfile`); corre `scripts/run.mjs` |
+
+## Aplicación web local y gamificación
+
+El mismo `docker compose up -d --build --wait` sirve ECILOST en
+[http://localhost:5173](http://localhost:5173). Nginx sirve el frontend compilado y
+republica en el mismo origen las APIs, Socket.IO y las fotos de Azurite. Engagement
+se conecta a MongoDB dentro de Compose y conserva su base `ecilost_engagement_load`
+en un volumen. MongoDB no publica puertos en el host. Una base nueva empieza sin
+progreso ni ranking, que se alimentan con los eventos de las subastas.
+
+Para iniciar sesión desde el navegador, crea un cliente OAuth de tipo **Aplicación
+web** en Google y registra exactamente `http://localhost:5173/auth/google/callback`
+como URI de redirección autorizada. Antes de levantar Compose, configura en tu
+sesión las variables `ECILOST_GOOGLE_CLIENT_ID` y `ECILOST_GOOGLE_CLIENT_SECRET`.
+Configura `ECILOST_STAFF_EMAILS` con los correos de funcionarios separados por
+comas. Usa un usuario estudiante en otra sesión del navegador para la prueba.
+El flujo sintético de k6 sigue funcionando sin credenciales de Google.
+
+Si cambias `ECILOST_WEB_PORT` (por defecto 5173), registra en Google la URI con el
+puerto nuevo y abre el frontend con ese mismo puerto. Google sigue siendo una
+dependencia externa del inicio de sesión. No guardes secretos en Git.
+
+Para la demo de portabilidad, comprueba `docker compose ps`, inicia sesión con dos
+estudiantes en sesiones independientes y abre la misma sala. La puja aceptada debe
+reflejarse en ambos navegadores. Al cerrar una ronda, revisa el perfil y el top semanal
+en la versión de los servicios que incluye gamificación. Grafana sigue en el puerto 3300.
+
+Para obtener métricas de aplicación en Grafana, usa las revisiones del backend
+que exponen GET /metrics. Compose también arranca con revisiones sin ese endpoint,
+pero esos servicios no aportan métricas de aplicación a Prometheus.
+
 ## Aislamiento
 
-Los servicios se levantan contra bases de carga dentro de los mismos contenedores de Docker:
+El entorno usa su propia infraestructura (proyecto `ecilost-load`) en puertos que no chocan con
+desarrollo: Postgres en 55432, RabbitMQ en 55672 (consola en 55673). Los contenedores de
+desarrollo (`ecilost-*-db`, `ecilost-rabbitmq`) no se tocan.
 
-| Servicio | Base de carga | Por que asi |
+| Servicio | Base de carga | Esquema |
 |---|---|---|
-| catalog | esquema `catalog_load` en `ecilost_catalog` | Prisma recibe el esquema desde `?schema=` |
-| auction | esquema `auction_load` en `ecilost_auction` | Igual; ademas fija `search_path` para su SQL crudo |
-| wallet | base `ecilost_wallet_load` (esquema `wallet`) | Sus migraciones escriben el esquema `"wallet"` a mano |
-| engagement | base `ecilost_engagement_load` (esquema `public`) | No le pasa el esquema a su adaptador de Prisma |
-| auth | la de desarrollo | Solo publica el JWKS; nadie inicia sesion durante la carga |
+| auth | `ecilost_auth_load` | `auth` |
+| catalog | `ecilost_catalog_load` | `catalog` |
+| wallet | `ecilost_wallet_load` | `wallet` (sus migraciones lo escriben a mano) |
+| auction | `ecilost_auction_load` | `auction` |
+| engagement | `ecilost_engagement_load` | `public` (no le pasa esquema a su adaptador) |
 
-Las URLs salen del `.env` de cada servicio (`scripts/lib/config.mjs`); nada de eso se imprime.
+Una base por servicio en un solo servidor, como Neon en Azure. Las bases se crean en el primer
+arranque (`compose/postgres/init.sql`) y cada servicio aplica sus migraciones al arrancar. Los
+servicios **no leen su `.env`**: el compose les da todo lo necesario con valores propios de la
+carga (Google con valores de relleno, Azurite, `METRICS_ENABLED=true`). Los nombres de las bases
+estan en `scripts/lib/config.mjs` y en el compose: si cambias uno, cambia el otro.
 
 ## Usuarios sinteticos
 
-El login es solo con Google. `scripts/tokens.mjs` firma tokens con la **llave privada local** de
-ecilost-auth-service y el mismo `kid`, issuer y audience que su `TokenService`, asi que los
-servicios los aceptan al verificarlos contra el JWKS local. La llave se lee del `.env` de auth y no
-se copia ni se imprime. **Solo sirve en local.** Los tokens quedan en `.data/` (no se versiona).
+El login es solo con Google. El servicio `keygen` genera, la primera vez, un par de llaves RS256
+**propio de la carga** en `.data/keys/` (`scripts/keys.mjs`); auth firma con ellas y
+`scripts/tokens.mjs` firma con la misma llave los tokens de los estudiantes y el funcionario
+sinteticos (mismo `kid`, issuer y audience que `TokenService`). No se usa la llave de desarrollo.
+**Solo sirve en este entorno.** Llaves y tokens quedan en `.data/` (no se versiona).
 
-## Requisitos
+## Sin Docker para el ejecutor (opcional)
 
-- Node 22 o superior y Docker Desktop con los contenedores de los servicios
-  (`ecilost-*-db`, `ecilost-rabbitmq`).
-- Los repos de los servicios junto a este (`../ecilost-<servicio>-service`) con su `.env` y
-  `npm install` hecho. Si un servicio no compila tras bajar cambios, regenera su cliente de
-  Prisma con `npx prisma generate` en ese repo.
-- [k6](https://k6.io) para los escenarios de carga (`winget install k6 --source winget`).
+Con Node 22 y k6 en el equipo se puede correr lo mismo fuera del contenedor, contra el entorno de
+Docker: `npm install` y `node scripts/run.mjs smoke`. Para depurar un servicio fuera de Docker:
+`docker compose up -d postgres rabbitmq azurite keygen`, `npm run migrate` (requiere `npm install`
+en el repo del servicio) y `node scripts/start-service.mjs <servicio>`.
 
-## Uso
+## Tableros
+
+En la carpeta ECILOST de Grafana (`observability/grafana/dashboards`):
+
+| Tablero | Para que |
+|---|---|
+| Correlacion (`ecilost-overview`) | Usuarios, latencia y tiempo real arriba; CPU, event loop, locks de Postgres y colas abajo, en la misma linea de tiempo |
+| k6 (`ecilost-k6`) | VUs, peticiones, percentiles p50/p90/p95/p99 por endpoint, errores, checks, pujas por resultado y Socket.IO |
+| Servicios (`ecilost-services`) | Lado servidor por ruta (desde `GET /metrics`), CPU, event loop, memoria, heap, GC |
+| Infraestructura (`ecilost-infra`) | Disponibilidad, contenedores, Postgres (conexiones, locks, transacciones, consultas) y RabbitMQ |
+
+Se generan con `node observability/grafana/build-dashboards.mjs`: los cambios se hacen ahi y se
+regenera; Grafana relee los JSON solo. Los cambios hechos en la UI no se guardan.
+
+## Escenarios k6
+
+`scripts/run.mjs` (lo que corre `docker compose run --rm runner`) prepara datos nuevos, corre k6
+con remote write a Prometheus (etiqueta `testid=<escenario>-<runId>`), verifica las garantias,
+genera el informe y guarda todo en `results/`. Lo que va despues de `--` se pasa a k6:
 
 ```bash
-npm install
-npm run migrate                     # crea/actualiza las bases *_load (se puede repetir)
+docker compose run --rm runner stress -- -e STEPS=100,200,300
+docker compose run --rm runner soak -- -e DURATION=45m
 ```
 
-Levanta cada servicio en su propia terminal (auth primero):
+Los perfiles originales duran **10 minutos** salvo `smoke` (~1.5 min) y `bid-storm` (90 s); los tiempos se cambian
+con las variables de cada escenario (`docs/EJECUCION.md`).
+
+| Escenario | Que mide | Datos por defecto |
+|---|---|---|
+| `smoke` | scripts, datos y metricas funcionan (cero errores) | 5 estudiantes, 1 sala |
+| `load` | carga nominal: `USERS` en sala (100) + `BROWSERS` (20), 7 min estables | 120, 2 salas |
+| `stress` | escalones `STEPS` (50..400) de 1 min hasta degradar, y recuperacion | 420, 2 salas |
+| `stress-reads` | relecturas/s que aguanta la sala (modelo abierto, `RATES`) | 200, 1 sala |
+| `spike` | `BASE` 10 -> `PEAK` 200 en 10 s y recuperacion | 200, 2 salas |
+| `soak` | `USERS` 60 constantes (8.5 min): deriva; con `DURATION` mayor, fugas lentas | 70, 1 sala |
+| `bid-storm` | contencion de pujas sobre una ronda (`VUS`) | 100, 1 sala |
+| `pickup-load` | reservas de franjas y emisión de códigos sobre adjudicaciones pagadas | 10 estudiantes, 10 rondas, 2 min |
+| `pickup-stress` | contención de cupos, escalones `STEPS` y recuperación | 20 estudiantes, 20 rondas |
+
+### Endpoints actuales
+
+Las sesiones incluyen actividad de sala, perfil, ranking, recogidas y franjas. Las lecturas
+adicionales de engagement se repiten cada 30 s por usuario (`ENGAGEMENT_READ_INTERVAL`).
+`GAMIFICATION=false` omite perfil/ranking; `EXTENDED_READS=false` omite esas lecturas adicionales.
+`CHAT_RATIO` controla la fracción de usuarios con chat (0.1 por defecto).
+Para comparar con el cliente anterior, combinar `CLIENT_READS=legacy`, `EXTENDED_READS=false`
+y `CHAT_RATIO=0`.
+
+Las pujas respetan la modalidad: oferta clásica/misteriosa, reclamación holandesa o un sobre
+por usuario/ronda. `--dynamic` habilita las modalidades mediante las APIs y conserva el resultado
+real del sorteo; no garantiza que una corrida recorra todas. `--buy-now 500` configura compra
+inmediata y `BUY_NOW_RATIO` controla su uso (0 por defecto). Las rondas liquidadas se verifican
+según su modalidad. Una corrida breve sin cierre temporal no demuestra latencia de cierre;
+conservar corridas largas para evaluar ese requisito.
 
 ```bash
-node scripts/start-service.mjs auth
-node scripts/start-service.mjs catalog
-node scripts/start-service.mjs wallet
-node scripts/start-service.mjs auction
-node scripts/start-service.mjs engagement
+# Humo de sala, chat y lecturas actuales
+docker compose run --rm runner smoke -- -e CHAT_RATIO=1
+# Modalidades sorteadas y compra inmediata
+docker compose run --rm runner load --dynamic --buy-now 500 -- -e BUY_NOW_RATIO=0.1
+# Reservas de recogida: un adjudicatario real y distinto por VU
+docker compose run --rm runner pickup-load
+docker compose run --rm runner pickup-stress
+# Validación breve del perfil de estrés, sin buscar saturación
+docker compose run --rm runner pickup-stress --students 3 -- -e STEPS=1,2,3 -e STEP_RAMP=3s -e STEP_HOLD=5s
+# Carreras: compra, último cupo, código de un solo uso; chat y ayuda del personal
+docker compose run --rm --no-deps --entrypoint node runner scripts/journey-smoke.mjs
+# Expiración JWT y reconexión Socket.IO con token vigente, tras preparar datos
+docker compose run --rm --no-deps --entrypoint node runner scripts/session-smoke.mjs
+# Sobres: sorteo real, privacidad, cierre temporal, ranking y liquidación
+docker compose run --rm --no-deps --entrypoint node runner scripts/sealed-smoke.mjs
+npm test
 ```
 
-Prueba de humo de la cadena completa:
+Para recogidas, `--students` debe cubrir el máximo de VUs (`USERS` o `STEPS`), hasta 500.
+La preparación compra objetos por API y espera su proyección en engagement; no escribe en BD.
+Las pruebas de recogida alternan una franja limitada y otra amplia. HTTP 409 por cupo agotado
+es un resultado de negocio válido; se comprueba además que nunca se supera la capacidad.
+Las pruebas funcionales verifican liquidación estricta y propietario de cada recogida.
+Los tokens son sintéticos y locales: la prueba de sesión no prueba login Google ni renovación
+de cookies. No ejecutar dos preparaciones simultáneas: comparten `.data/run.json` y tokens.
+
+Estructura: `k6/lib` (configuracion, datos, API con checks, cliente Socket.IO, metricas y
+umbrales), `k6/flows` (lo que hace cada tipo de usuario, segun el frontend) y `k6/scenarios`
+(perfiles de carga). Los umbrales de `REQUIREMENT` son el requisito de tiempo real; los de
+`REFERENCE` son valores propuestos para comparar corridas, no requisitos.
+
+En `summary.json` de cada corrida, un umbral en `false` significa que **no** se cruzo
+(se cumplio); k6 sale con 99 si alguno se cruzo.
+
+Prueba de humo de la cadena completa, sin k6 (con Node en el equipo):
 
 ```bash
 node scripts/tokens.mjs --students 5
@@ -85,13 +231,14 @@ El JSON de k6 contiene las métricas de la corrida. El verificador revisa las in
 ### `setup.mjs`
 
 Todo por las APIs de los servicios: billeteras (emision inicial y recarga opcional), objetos en
-catalog, la sala con sus rondas y la admision previa. Deja `.data/run.json` para k6 y `verify.mjs`.
+catalog, las salas con sus rondas y la admision previa. Deja `.data/run.json` para k6 y `verify.mjs`.
 
 | Opcion | Por defecto | Para que |
 |---|---|---|
 | `--scenario` | `smoke` | Nombre de la corrida |
 | `--students` | 5 | Estudiantes que participan (tokens de `tokens.mjs`) |
-| `--capacity` | = estudiantes | Aforo de la sala |
+| `--rooms` | 1 | Salas; los estudiantes se reparten entre ellas |
+| `--capacity` | estudiantes / salas | Aforo de cada sala |
 | `--rounds` | 1 | Rondas (un objeto por ronda) |
 | `--starting-price` | 100 | Precio minimo de cada ronda |
 | `--buy-now` | sin compra inmediata | Precio de compra inmediata de cada ronda |
@@ -100,7 +247,8 @@ catalog, la sala con sus rondas y la admision previa. Deja `.data/run.json` para
 | `--admit false` | se admite | No admitir (para medir la admision con k6) |
 | `--wait-active` | no | Esperar a que el reloj del servidor abra la sala |
 
-Una ronda dura 3 minutos (8 como maximo con anti-sniping): cada corrida debe caber en ella.
+Una ronda dura 3 minutos (8 como maximo con anti-sniping): las corridas largas usan salas con
+varias rondas (ver `DEFAULTS` en `scripts/run.mjs`).
 
 ### `verify.mjs`
 
@@ -110,6 +258,17 @@ superados que se liberan al liquidar) o `FALLA`; con alguna `FALLA` sale con cod
 
 ## Empezar de cero
 
-Las bases de carga son solo de esta prueba. Para vaciarlas, borra los esquemas `catalog_load` y
-`auction_load` y las bases `ecilost_wallet_load` y `ecilost_engagement_load`, y corre de nuevo
-`npm run migrate`. Las bases de desarrollo no se tocan.
+Para generar evidencias únicamente de carga y estrés, con curvas de diez minutos cada una:
+
+```bash
+node scripts/evidence-suite.mjs
+```
+
+Requiere Node 22 y Docker con el entorno levantado. Guarda un índice en
+`results/evidence-10m-<fecha>/README.md`, con informes y enlaces de Grafana por corrida.
+La preparación y el cierre de conexiones se registran aparte de los 600 segundos de cada curva.
+Los umbrales se evalúan al final, sin aborto anticipado durante esta batería.
+
+Las bases de carga son solo de esta prueba. `docker compose down -v` borra bases y series;
+`docker compose up -d --build --wait` las crea de nuevo. Para llaves nuevas, borrar tambien
+`.data/`. Las bases de desarrollo no se tocan.

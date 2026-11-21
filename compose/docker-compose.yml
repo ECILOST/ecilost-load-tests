@@ -1,0 +1,255 @@
+# Sistema ECILOST completo para las pruebas de rendimiento, aislado de desarrollo. Lo incluye
+# el docker-compose.yml de la raiz del repo (proyecto `ecilost-load`): se levanta desde alli.
+#
+# - Infraestructura propia (Postgres, RabbitMQ, Azurite) en puertos que no chocan con los
+#   contenedores de desarrollo (5433-5437, 5672, 10000): las bases *_load viven aqui.
+# - Los cinco servicios se construyen con su Dockerfile (el mismo de la CI) desde los repos
+#   hermanos (../../ecilost-<servicio>-service). No leen su .env: todo lo que necesitan esta
+#   abajo, con valores propios de la carga. Asi basta con clonar los repos.
+# - Cada servicio aplica sus migraciones al arrancar (`prisma migrate deploy` de su imagen).
+# - Un solo Postgres con una base por servicio, como Neon en Azure (un proyecto por entorno).
+#
+# Limites como Azure Container Apps (0.25 vCPU, 0.5 GiB por servicio):
+#   SERVICE_CPUS=0.25 SERVICE_MEMORY=512m docker compose up -d --build --wait
+
+x-service: &service
+  restart: on-failure
+  # 0 = sin limite. Los valores de Azure estan en ecilost-terraform/modules/compute/variables.tf.
+  cpus: ${SERVICE_CPUS:-0}
+  mem_limit: ${SERVICE_MEMORY:-0}
+  depends_on:
+    postgres:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+
+# Comun a los servicios que verifican el token de auth contra su JWKS.
+x-env: &env
+  NODE_ENV: production
+  METRICS_ENABLED: "true"
+  RABBITMQ_URL: amqp://ecilost:ecilost@rabbitmq:5672
+  AUTH_JWKS_URL: http://auth:3000/.well-known/jwks.json
+  # Mismos valores que LOAD_JWT en scripts/lib/config.mjs (firma de los tokens sinteticos).
+  JWT_ISSUER: https://auth.ecilost.local
+  JWT_AUDIENCE: ecilost-services
+
+# Comprueba que Nest responde por HTTP después de las migraciones. Las ramas
+# sin instrumentación devuelven 404 en /metrics y también pueden arrancar.
+x-healthcheck: &healthcheck
+  interval: 5s
+  timeout: 3s
+  retries: 30
+  start_period: 20s
+
+# Migraciones y arranque, con el CLI de Prisma que ya trae cada imagen (no descarga nada).
+x-start: &start ["sh", "-c", "node_modules/.bin/prisma migrate deploy && exec node dist/main.js"]
+
+services:
+  frontend:
+    restart: on-failure
+    build: ../../ecilost-frontend
+    image: ecilost-load/frontend
+    ports:
+      - "127.0.0.1:${ECILOST_WEB_PORT:-5173}:8080"
+    depends_on:
+      auth:
+        condition: service_healthy
+      catalog:
+        condition: service_healthy
+      wallet:
+        condition: service_healthy
+      auction:
+        condition: service_healthy
+      engagement:
+        condition: service_healthy
+      azurite:
+        condition: service_started
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+
+  mongo:
+    image: mongo:7.0
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.adminCommand({ ping: 1 }).ok ? 0 : 1)"]
+
+  # Tags exactos y distintos a los de desarrollo (17-alpine, 4-management-alpine): cAdvisor
+  # identifica los contenedores por imagen (ver observability/prometheus/prometheus.yml).
+  postgres:
+    image: postgres:17.11-alpine
+    environment:
+      POSTGRES_USER: ecilost
+      POSTGRES_PASSWORD: ecilost
+      POSTGRES_DB: postgres
+    # pg_stat_statements: consultas mas lentas y mas frecuentes durante una corrida.
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements", "-c", "pg_stat_statements.track=all"]
+    ports:
+      - "55432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecilost -d postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4.3.6-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ecilost
+      RABBITMQ_DEFAULT_PASS: ecilost
+    ports:
+      - "55672:5672"
+      - "55673:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.37.0
+    volumes:
+      - azurite-data:/data
+    command: ["azurite-blob", "--blobHost", "0.0.0.0", "--blobPort", "10000", "--skipApiVersionCheck"]
+
+  # Llaves RS256 de la carga en ../.data/keys (scripts/keys.mjs); solo las crea si faltan.
+  keygen:
+    build:
+      context: ..
+      dockerfile: docker/runner.Dockerfile
+    image: ecilost-load/runner
+    entrypoint: ["node", "scripts/keys.mjs"]
+    volumes:
+      - ..:/app
+      - /app/node_modules
+
+  auth:
+    <<: *service
+    build: ../../ecilost-auth-service
+    image: ecilost-load/auth
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      keygen:
+        condition: service_completed_successfully
+    environment:
+      <<: *env
+      PORT: "3000"
+      DATABASE_URL: postgresql://ecilost:ecilost@postgres:5432/ecilost_auth_load?schema=auth
+      # Nadie inicia sesion con Google durante la carga: valores de relleno que pasan la validacion.
+      GOOGLE_CLIENT_ID: ${ECILOST_GOOGLE_CLIENT_ID:-load-tests.apps.googleusercontent.com}
+      GOOGLE_CLIENT_SECRET: ${ECILOST_GOOGLE_CLIENT_SECRET:-load-tests-not-used}
+      GOOGLE_REDIRECT_URI: http://localhost:${ECILOST_WEB_PORT:-5173}/auth/google/callback
+      STAFF_EMAILS: "${ECILOST_STAFF_EMAILS:-}"
+      ACCESS_TOKEN_TTL_SECONDS: "900"
+      REFRESH_TOKEN_TTL_SECONDS: "604800"
+      COOKIE_SECRET: load-tests-cookie-secret-not-for-production
+      COOKIE_SECURE: "false"
+      POST_LOGIN_REDIRECT_URL: http://localhost:${ECILOST_WEB_PORT:-5173}/
+      POST_LOGIN_ERROR_URL: http://localhost:${ECILOST_WEB_PORT:-5173}/login
+    volumes:
+      - ../.data/keys:/keys:ro
+    # Las llaves se leen de archivo: compose no puede leer variables que crea otro servicio.
+    command: ["sh", "-c", "export JWT_PRIVATE_KEY=\"$$(cat /keys/private.b64)\" JWT_PUBLIC_KEY=\"$$(cat /keys/public.b64)\" && node_modules/.bin/prisma migrate deploy && exec node dist/main.js"]
+    ports:
+      - "3000:3000"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/metrics').then(r=>process.exit(r.ok||r.status===404?0:1),()=>process.exit(1))"]
+
+  catalog:
+    <<: *service
+    build: ../../ecilost-catalog-service
+    image: ecilost-load/catalog
+    environment:
+      <<: *env
+      PORT: "3001"
+      DATABASE_URL: postgresql://ecilost:ecilost@postgres:5432/ecilost_catalog_load?schema=catalog
+      MEDIA_ORPHAN_GRACE_HOURS: "24"
+      # Cuenta y llave publicas de desarrollo de Azurite (documentadas por Microsoft).
+      AZURE_STORAGE_ACCOUNT_NAME: devstoreaccount1
+      AZURE_STORAGE_CONTAINER: catalog-media
+      AZURE_STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+    command: *start
+    ports:
+      - "3001:3001"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/metrics').then(r=>process.exit(r.ok||r.status===404?0:1),()=>process.exit(1))"]
+
+  wallet:
+    <<: *service
+    build: ../../ecilost-wallet-service
+    image: ecilost-load/wallet
+    environment:
+      <<: *env
+      PORT: "3002"
+      DATABASE_URL: postgresql://ecilost:ecilost@postgres:5432/ecilost_wallet_load?schema=wallet
+      # wallet lee issuer y audience con otro nombre.
+      AUTH_ISSUER: https://auth.ecilost.local
+      AUTH_AUDIENCE: ecilost-services
+      INITIAL_ECICOIN_BALANCE: "10000"
+    command: *start
+    ports:
+      - "3002:3002"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3002/metrics').then(r=>process.exit(r.ok||r.status===404?0:1),()=>process.exit(1))"]
+
+  auction:
+    <<: *service
+    build: ../../ecilost-auction-service
+    image: ecilost-load/auction
+    environment:
+      <<: *env
+      PORT: "3003"
+      DATABASE_URL: postgresql://ecilost:ecilost@postgres:5432/ecilost_auction_load?schema=auction
+    command: *start
+    ports:
+      - "3003:3003"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3003/metrics').then(r=>process.exit(r.ok||r.status===404?0:1),()=>process.exit(1))"]
+
+  engagement:
+    <<: *service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    build: ../../ecilost-engagement-service
+    image: ecilost-load/engagement
+    environment:
+      <<: *env
+      PORT: "3005"
+      DATABASE_URL: postgresql://ecilost:ecilost@postgres:5432/ecilost_engagement_load?schema=public
+      AUCTION_SERVICE_URL: http://auction:3003
+      MONGODB_URI: mongodb://mongo:27017
+      MONGODB_DB: ecilost_engagement_load
+    command: *start
+    ports:
+      - "3005:3005"
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3005/metrics').then(r=>process.exit(r.ok||r.status===404?0:1),()=>process.exit(1))"]
+
+# Nombres fijos: el proyecto puede cambiar de nombre sin perder las bases ni las series.
+volumes:
+  postgres-data:
+    name: ecilost-load_postgres-data
+  rabbitmq-data:
+    name: ecilost-load_rabbitmq-data
+  mongo-data:
+  azurite-data:

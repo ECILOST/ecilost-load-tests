@@ -1,19 +1,26 @@
 {
   "name": "ecilost-load-tests",
-  "version": "0.1.0",
-  "description": "Pruebas de carga de ECILOST contra el entorno local (Docker) con esquemas *_load aislados",
+  "version": "1.0.0",
+  "description": "Pruebas de rendimiento de ECILOST (k6, Prometheus, Grafana) contra un entorno local aislado en Docker",
   "private": true,
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "smoke:journey": "node scripts/journey-smoke.mjs",
+    "up": "docker compose up -d --build --wait",
+    "down": "docker compose down",
+    "scenario": "docker compose run --rm runner",
     "migrate": "node scripts/migrate-load.mjs",
     "service": "node scripts/start-service.mjs",
+    "keys": "node scripts/keys.mjs",
     "tokens": "node scripts/tokens.mjs",
     "setup": "node scripts/setup.mjs",
     "verify": "node scripts/verify.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "report": "node scripts/report.mjs"
   },
   "dependencies": {
     "jose": "^6.2.12",
