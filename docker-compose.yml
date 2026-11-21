@@ -47,3 +47,9 @@ services:
         condition: service_healthy
       prometheus:
         condition: service_started
+      grafana:
+        condition: service_started
+      cadvisor:
+        condition: service_started
+      postgres-exporter:
+        condition: service_started

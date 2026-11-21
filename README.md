@@ -75,9 +75,10 @@ estudiantes en sesiones independientes y abre la misma sala. La puja aceptada de
 reflejarse en ambos navegadores. Al cerrar una ronda, revisa el perfil y el top semanal
 en la versión de los servicios que incluye gamificación. Grafana sigue en el puerto 3300.
 
-Para obtener métricas de aplicación en Grafana, usa las revisiones del backend
-que exponen GET /metrics. Compose también arranca con revisiones sin ese endpoint,
-pero esos servicios no aportan métricas de aplicación a Prometheus.
+Los cinco microservicios exponen `GET /metrics` al activar `METRICS_ENABLED=true`,
+como hace este Compose. El endpoint queda fuera del prefijo `/wallet` y se desactiva
+por defecto fuera del entorno de carga. Incluye HTTP por ruta, CPU, memoria, GC,
+event loop y, en engagement, sockets conectados. Ver [observabilidad](docs/OBSERVABILIDAD.md).
 
 ## Aislamiento
 

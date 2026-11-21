@@ -1,0 +1,19 @@
+{
+  "scenario": "load",
+  "testid": "load-fa69be4b",
+  "runId": "fa69be4b",
+  "startedAt": "2026-11-21T10:11:50.703Z",
+  "finishedAt": "2026-11-21T10:22:21.680Z",
+  "data": {
+    "students": 120,
+    "rooms": 2,
+    "rounds": 6
+  },
+  "k6Args": [
+    "-e",
+    "FULL_DURATION=true"
+  ],
+  "k6Exit": 0,
+  "verifyExit": 0,
+  "grafana": "http://localhost:3300/d/ecilost-overview?from=1795255850703&to=1795256601680&var-testid=load-fa69be4b"
+}

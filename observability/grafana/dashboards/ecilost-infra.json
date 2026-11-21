@@ -36,7 +36,7 @@
       "id": 1,
       "type": "timeseries",
       "title": "Disponibilidad de los targets",
-      "description": "1 = Prometheus pudo raspar el target. Un 0 durante una corrida es una caida.",
+      "description": "1 = Prometheus pudo raspar el target. 0 = scrape fallido (endpoint, red o proceso). No demuestra por sí solo una caída de la aplicación.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -441,7 +441,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (datname, state) (pg_stat_activity_count{datname=~\".*_load\"}) > 0",
+          "expr": "sum by (datname, state) (pg_stat_activity_count{datname=~\".*_load\"})",
           "legendFormat": "{{datname}} {{state}}",
           "range": true,
           "refId": "A"
@@ -512,7 +512,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (datname) (pg_stat_activity_count{datname=~\".*_load\", wait_event_type=\"Lock\"})",
+          "expr": "(sum by (datname) (pg_stat_activity_count{datname=~\".*_load\", wait_event_type=\"Lock\"}) or on (datname) (0 * sum by (datname) (pg_stat_database_numbackends{datname=~\".*_load\"})))",
           "legendFormat": "{{datname}}",
           "range": true,
           "refId": "A"
@@ -584,7 +584,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (datname, mode) (pg_locks_count{datname=~\".*_load\"}) > 0",
+          "expr": "sum by (datname, mode) (pg_locks_count{datname=~\".*_load\"})",
           "legendFormat": "{{datname}} {{mode}}",
           "range": true,
           "refId": "A"
@@ -1039,7 +1039,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (queue) (rabbitmq_detailed_queue_messages_ready) > 0",
+          "expr": "sum by (queue) (rabbitmq_detailed_queue_messages_ready)",
           "legendFormat": "{{queue}}",
           "range": true,
           "refId": "A"
@@ -1112,7 +1112,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (queue) (rabbitmq_detailed_queue_messages_unacked) > 0",
+          "expr": "sum by (queue) (rabbitmq_detailed_queue_messages_unacked)",
           "legendFormat": "{{queue}}",
           "range": true,
           "refId": "A"

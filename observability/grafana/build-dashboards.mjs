@@ -141,8 +141,11 @@ const k6QuantileSoFar = (q, metric) => `histogram_quantile(${q}, sum(${metric}{$
 const svcQuantile = (q, by) => `histogram_quantile(${q}, sum by (le, ${by}) (rate(http_server_request_duration_seconds_bucket{job="services", service=~"$service", route!="/metrics"}[${RI}])))`;
 // `or vector(0)`: sin peticiones fallidas la serie no existe y el panel diria "No data" en vez de 0 %.
 const k6ErrorRatio = `(sum(rate(k6_http_reqs_total{${K6}, expected_response="false"}[${RI}])) or vector(0)) / sum(rate(k6_http_reqs_total{${K6}}[${RI}]))`;
+// A missing error counter means zero only while HTTP traffic is actually being measured.
+const k6CounterRate = (metric) => `(sum(rate(${metric}{${K6}}[${RI}])) or (0 * sum(rate(k6_http_reqs_total{${K6}}[${RI}]))))`;
+const serviceErrorRate = (code) => `(sum by (service, route, status_code) (rate(http_server_request_duration_seconds_count{job="services", service=~"$service", status_code=~"${code}"}[${RI}])) or on (service, route) (0 * sum by (service, route) (rate(http_server_request_duration_seconds_count{job="services", service=~"$service", route!="/metrics"}[${RI}]))))`;
 const containerCpu = `sum by (container) (rate(container_cpu_usage_seconds_total[${RI}]))`;
-const pgLockWaits = 'sum by (datname) (pg_stat_activity_count{datname=~".*_load", wait_event_type="Lock"})';
+const pgLockWaits = '(sum by (datname) (pg_stat_activity_count{datname=~".*_load", wait_event_type="Lock"}) or on (datname) (0 * sum by (datname) (pg_stat_database_numbackends{datname=~".*_load"})))';
 
 // --- 1. Correlacion ------------------------------------------------------------------------
 const overview = dashboard('ecilost-overview', 'ECILOST · Correlacion', 'Usuarios de k6 contra latencia, tiempo real y recursos en la misma linea de tiempo.', [testidVariable], [
@@ -166,10 +169,10 @@ const overview = dashboard('ecilost-overview', 'ECILOST · Correlacion', 'Usuari
     target(k6Quantile(0.95, 'k6_realtime_event_delivery_seconds'), 'p95 entrega del socket'),
   ], { unit: 's', limit: REALTIME_LIMIT }),
   series('Errores y pujas', [
-    target(`sum(rate(k6_http_reqs_total{${K6}, expected_response="false"}[${RI}]))`, 'HTTP fallidas/s'),
-    target(`sum(rate(k6_bids_unavailable_total{${K6}}[${RI}]))`, 'pujas 5xx/s'),
-    target(`sum(rate(k6_bids_accepted_total{${K6}}[${RI}]))`, 'pujas aceptadas/s'),
-    target(`sum(rate(k6_ws_errors_total{${K6}}[${RI}]))`, 'errores de socket/s'),
+    target(`(sum(rate(k6_http_reqs_total{${K6}, expected_response="false"}[${RI}])) or (0 * sum(rate(k6_http_reqs_total{${K6}}[${RI}]))))`, 'HTTP fallidas/s'),
+    target(k6CounterRate('k6_bids_unavailable_total'), 'pujas 5xx/s'),
+    target(k6CounterRate('k6_bids_accepted_total'), 'pujas aceptadas/s'),
+    target(k6CounterRate('k6_ws_errors_total'), 'errores de socket/s'),
   ], { unit: 'reqps' }),
   row('Servidor en la misma ventana'),
   series('CPU por contenedor (nucleos)', [target(containerCpu, '{{container}}')], { unit: 'short', w: 8 }),
@@ -177,7 +180,7 @@ const overview = dashboard('ecilost-overview', 'ECILOST · Correlacion', 'Usuari
   series('p95 por servicio (lado servidor)', [target('histogram_quantile(0.95, sum by (le, service) (rate(http_server_request_duration_seconds_bucket{route!="/metrics"}[$__rate_interval])))', '{{service}}')], { unit: 's', w: 8 }),
   series('Postgres: sesiones esperando un lock', [target(pgLockWaits, '{{datname}}')], { unit: 'short', w: 8, noValue: '0', description: 'Sesiones bloqueadas por otra transaccion (FOR UPDATE de la ronda, advisory lock del pujador).' }),
   series('Postgres: conexiones por base', [target('sum by (datname) (pg_stat_database_numbackends{datname=~".*_load"})', '{{datname}}')], { unit: 'short', w: 8 }),
-  series('RabbitMQ: mensajes sin consumir por cola', [target('sum by (queue) (rabbitmq_detailed_queue_messages_ready + rabbitmq_detailed_queue_messages_unacked) > 0', '{{queue}}')], { unit: 'short', w: 8, noValue: '0', description: 'Listos + sin confirmar. Una cola que crece es un consumidor que no da abasto.' }),
+  series('RabbitMQ: mensajes sin consumir por cola', [target('sum by (queue) (rabbitmq_detailed_queue_messages_ready + rabbitmq_detailed_queue_messages_unacked)', '{{queue}}')], { unit: 'short', w: 8, noValue: '0', description: 'Listos + sin confirmar. Una cola que crece es un consumidor que no da abasto.' }),
 ]);
 
 // --- 2. k6 ---------------------------------------------------------------------------------
@@ -188,10 +191,10 @@ const k6 = dashboard('ecilost-k6', 'ECILOST · k6', 'Comportamiento de la carga 
   series('Iteraciones completadas por escenario', [target(`sum by (scenario) (k6_iterations_total{${K6}})`, '{{scenario}}')], { w: 8, description: 'Acumulado. Una iteracion de sala es una sesion completa (minutos); la del catalogo, una visita.' }),
   series('Peticiones/s: exitosas y fallidas', [
     target(`sum(rate(k6_http_reqs_total{${K6}, expected_response="true"}[${RI}]))`, 'exitosas'),
-    target(`sum(rate(k6_http_reqs_total{${K6}, expected_response="false"}[${RI}]))`, 'fallidas'),
+    target(`(sum(rate(k6_http_reqs_total{${K6}, expected_response="false"}[${RI}])) or (0 * sum(rate(k6_http_reqs_total{${K6}}[${RI}]))))`, 'fallidas'),
   ], { unit: 'reqps', stack: true, w: 8 }),
   series('Peticiones/s por endpoint', [target(`sum by (name) (rate(k6_http_reqs_total{${K6}}[${RI}]))`, '{{name}}')], { unit: 'reqps' }),
-  series('Tasa de error por endpoint', [target(`sum by (name) (rate(k6_http_reqs_total{${K6}, expected_response="false"}[${RI}])) / sum by (name) (rate(k6_http_reqs_total{${K6}}[${RI}]))`, '{{name}}')], { unit: 'percentunit', limit: 0.01, noValue: '0' }),
+  series('Tasa de error por endpoint', [target(`((sum by (name) (rate(k6_http_reqs_total{${K6}, expected_response="false"}[${RI}])) or on (name) (0 * sum by (name) (rate(k6_http_reqs_total{${K6}}[${RI}])))) / sum by (name) (rate(k6_http_reqs_total{${K6}}[${RI}])))`, '{{name}}')], { unit: 'percentunit', limit: 0.01, noValue: '0' }),
   series('Duracion promedio por endpoint', [target(`histogram_avg(sum by (name) (rate(k6_http_req_duration_seconds{${K6}}[${RI}])))`, '{{name}}')], { unit: 's', w: 8 }),
   series('p50 por endpoint', [target(k6Quantile(0.5, 'k6_http_req_duration_seconds', 'name'), '{{name}}')], { unit: 's', w: 8 }),
   series('p90 por endpoint', [target(k6Quantile(0.9, 'k6_http_req_duration_seconds', 'name'), '{{name}}')], { unit: 's', w: 8 }),
@@ -203,16 +206,16 @@ const k6 = dashboard('ecilost-k6', 'ECILOST · k6', 'Comportamiento de la carga 
     target(k6Quantile(0.95, 'k6_http_req_waiting_seconds'), 'esperando al servidor (TTFB)'),
     target(k6Quantile(0.95, 'k6_http_req_receiving_seconds'), 'recibiendo'),
   ], { unit: 's', description: 'Si "esperando" domina, el tiempo lo pone el servidor; si "bloqueada", el generador de carga.' }),
-  series('Checks fallidos (acumulado)', [target(`1 - avg by (check) (k6_checks_rate{${K6}}) > 0`, '{{check}}')], { unit: 'percentunit', description: 'Solo aparecen los checks con alguna falla.' }),
+  series('Tasa de checks fallidos', [target(`1 - avg by (check) (k6_checks_rate{${K6}})`, '{{check}}')], { unit: 'percentunit', description: 'Cero significa que los checks medidos no han fallado. Sin muestras no equivale a cero.' }),
   row('Pujas'),
   series('Resultado de las pujas/s', [
-    target(`sum(rate(k6_bids_accepted_total{${K6}}[${RI}]))`, 'aceptada'),
-    target(`sum(rate(k6_bids_409_outbid_total{${K6}}[${RI}]))`, '409 otra llego primero'),
-    target(`sum(rate(k6_bids_409_below_minimum_total{${K6}}[${RI}]))`, '409 bajo el minimo'),
-    target(`sum(rate(k6_bids_409_insufficient_funds_total{${K6}}[${RI}]))`, '409 fondos insuficientes'),
-    target(`sum(rate(k6_bids_409_round_closed_total{${K6}}[${RI}]))`, '409 ronda cerrada'),
-    target(`sum(rate(k6_bids_409_other_total{${K6}}[${RI}]))`, '409 otro'),
-    target(`sum(rate(k6_bids_unavailable_total{${K6}}[${RI}]))`, '5xx / sin respuesta'),
+    target(k6CounterRate('k6_bids_accepted_total'), 'aceptada'),
+    target(k6CounterRate('k6_bids_409_outbid_total'), '409 otra llego primero'),
+    target(k6CounterRate('k6_bids_409_below_minimum_total'), '409 bajo el minimo'),
+    target(k6CounterRate('k6_bids_409_insufficient_funds_total'), '409 fondos insuficientes'),
+    target(k6CounterRate('k6_bids_409_round_closed_total'), '409 ronda cerrada'),
+    target(k6CounterRate('k6_bids_409_other_total'), '409 otro'),
+    target(k6CounterRate('k6_bids_unavailable_total'), '5xx / sin respuesta'),
   ], { unit: 'reqps', stack: true }),
   series('Tiempo real (requisito < 1 s)', [
     target(k6Quantile(0.5, 'k6_realtime_price_propagation_seconds'), 'p50 precio en vivo'),
@@ -220,10 +223,10 @@ const k6 = dashboard('ecilost-k6', 'ECILOST · k6', 'Comportamiento de la carga 
     target(k6Quantile(0.99, 'k6_realtime_price_propagation_seconds'), 'p99 precio en vivo'),
     target(k6Quantile(0.95, 'k6_realtime_bid_to_price_seconds'), 'p95 puja -> precio visto'),
     target(k6QuantileSoFar(0.95, 'k6_realtime_round_close_lag_seconds'), 'p95 retraso de cierre (acumulado)'),
-    target(`sum(rate(k6_realtime_price_events_missed_total{${K6}}[${RI}]))`, 'precios no recibidos/s'),
+    target(k6CounterRate('k6_realtime_price_events_missed_total'), 'precios no recibidos/s'),
   ], { unit: 's', limit: REALTIME_LIMIT }),
   row('Socket.IO'),
-  series('Sesiones de socket (acumulado)', [target(`sum(k6_ws_sessions_total{${K6}})`, 'sesiones abiertas'), target(`sum by (reason) (k6_ws_errors_total{${K6}})`, 'errores {{reason}}')], { w: 8 }),
+  series('Sesiones de socket (acumulado)', [target(`sum(k6_ws_sessions_total{${K6}})`, 'sesiones abiertas'), target(`(sum by (reason) (k6_ws_errors_total{${K6}}) or (0 * sum(k6_ws_sessions_total{${K6}})))`, 'errores {{reason}}')], { w: 8 }),
   series('Conexion y room.join (p95 acumulado)', [
     target(k6QuantileSoFar(0.95, 'k6_ws_connect_duration_seconds'), 'conexion al namespace'),
     target(k6QuantileSoFar(0.95, 'k6_ws_join_duration_seconds'), 'room.join -> ack'),
@@ -235,8 +238,8 @@ const k6 = dashboard('ecilost-k6', 'ECILOST · k6', 'Comportamiento de la carga 
 const services = dashboard('ecilost-services', 'ECILOST · Servicios', 'Lado servidor de cada microservicio (GET /metrics con METRICS_ENABLED=true).', [serviceVariable], [
   series('Peticiones/s por ruta', [target(`sum by (service, route) (rate(http_server_request_duration_seconds_count{job="services", service=~"$service", route!="/metrics"}[${RI}]))`, '{{service}} {{route}}')], { unit: 'reqps' }),
   series('Respuestas 5xx y 4xx/s', [
-    target(`sum by (service, route) (rate(http_server_request_duration_seconds_count{job="services", service=~"$service", status_code=~"5.."}[${RI}]))`, '5xx {{service}} {{route}}'),
-    target(`sum by (service, route, status_code) (rate(http_server_request_duration_seconds_count{job="services", service=~"$service", status_code=~"4.."}[${RI}]))`, '{{status_code}} {{service}} {{route}}'),
+    target(serviceErrorRate('5..'), '5xx {{service}} {{route}}'),
+    target(serviceErrorRate('4..'), '4xx {{status_code}} {{service}} {{route}}'),
   ], { unit: 'reqps' }),
   series('p95 por ruta', [target(svcQuantile(0.95, 'service, route'), '{{service}} {{route}}')], { unit: 's', limit: 0.3 }),
   series('p99 por ruta', [target(svcQuantile(0.99, 'service, route'), '{{service}} {{route}}')], { unit: 's' }),
@@ -257,16 +260,16 @@ const services = dashboard('ecilost-services', 'ECILOST · Servicios', 'Lado ser
 
 // --- 4. Infraestructura ------------------------------------------------------------------------
 const infra = dashboard('ecilost-infra', 'ECILOST · Infraestructura', 'Contenedores, Postgres y RabbitMQ del sistema bajo prueba.', [], [
-  series('Disponibilidad de los targets', [target('up', '{{job}} {{instance}}')], { min: 0, w: 24, h: 6, description: '1 = Prometheus pudo raspar el target. Un 0 durante una corrida es una caida.' }),
+  series('Disponibilidad de los targets', [target('up', '{{job}} {{instance}}')], { min: 0, w: 24, h: 6, description: '1 = Prometheus pudo raspar el target. 0 = scrape fallido (endpoint, red o proceso). No demuestra por sí solo una caída de la aplicación.' }),
   row('Contenedores (cAdvisor)'),
   series('CPU por contenedor (nucleos)', [target(containerCpu, '{{container}}')], { w: 8 }),
   series('Memoria (working set)', [target('sum by (container) (container_memory_working_set_bytes)', '{{container}}')], { unit: 'bytes', w: 8 }),
   series('CPU: tiempo esperando turno', [target(`sum by (container) (rate(container_pressure_cpu_waiting_seconds_total[${RI}]))`, '{{container}}')], { unit: 's', w: 8, description: 'Presion de CPU: el contenedor queria correr y no habia CPU (limite o equipo saturado, incluido k6).' }),
   row('Postgres (un servidor, una base por servicio)'),
   series('Conexiones por base', [target('sum by (datname) (pg_stat_database_numbackends{datname=~".*_load"})', '{{datname}}'), target('max(pg_settings_max_connections)', 'max_connections')], { w: 8 }),
-  series('Sesiones por estado', [target('sum by (datname, state) (pg_stat_activity_count{datname=~".*_load"}) > 0', '{{datname}} {{state}}')], { w: 8, description: '"idle in transaction" alto = transacciones abiertas esperando a la aplicacion.' }),
+  series('Sesiones por estado', [target('sum by (datname, state) (pg_stat_activity_count{datname=~".*_load"})', '{{datname}} {{state}}')], { w: 8, description: '"idle in transaction" alto = transacciones abiertas esperando a la aplicacion.' }),
   series('Sesiones esperando un lock', [target(pgLockWaits, '{{datname}}')], { w: 8, noValue: '0' }),
-  series('Locks por modo', [target('sum by (datname, mode) (pg_locks_count{datname=~".*_load"}) > 0', '{{datname}} {{mode}}')], { w: 8 }),
+  series('Locks por modo', [target('sum by (datname, mode) (pg_locks_count{datname=~".*_load"})', '{{datname}} {{mode}}')], { w: 8 }),
   series('Transacciones/s', [
     target(`sum by (datname) (rate(pg_stat_database_xact_commit{datname=~".*_load"}[${RI}]))`, 'commit {{datname}}'),
     target(`sum by (datname) (rate(pg_stat_database_xact_rollback{datname=~".*_load"}[${RI}]))`, 'rollback {{datname}}'),
@@ -284,8 +287,8 @@ const infra = dashboard('ecilost-infra', 'ECILOST · Infraestructura', 'Contened
     w: 24, description: 'El texto de cada queryid: SELECT query FROM pg_stat_statements WHERE queryid = <id> (ver docs/EJECUCION.md).',
   }),
   row('RabbitMQ'),
-  series('Mensajes listos por cola', [target('sum by (queue) (rabbitmq_detailed_queue_messages_ready) > 0', '{{queue}}')], { w: 8, noValue: '0' }),
-  series('Mensajes sin confirmar por cola', [target('sum by (queue) (rabbitmq_detailed_queue_messages_unacked) > 0', '{{queue}}')], { w: 8, noValue: '0', description: 'Entregados al consumidor y aun sin ack: trabajo en curso.' }),
+  series('Mensajes listos por cola', [target('sum by (queue) (rabbitmq_detailed_queue_messages_ready)', '{{queue}}')], { w: 8, noValue: '0' }),
+  series('Mensajes sin confirmar por cola', [target('sum by (queue) (rabbitmq_detailed_queue_messages_unacked)', '{{queue}}')], { w: 8, noValue: '0', description: 'Entregados al consumidor y aun sin ack: trabajo en curso.' }),
   series('Publicados y entregados/s', [
     target(`sum(rate(rabbitmq_global_messages_received_total[${RI}]))`, 'publicados'),
     target(`sum(rate(rabbitmq_global_messages_delivered_total[${RI}]))`, 'entregados'),

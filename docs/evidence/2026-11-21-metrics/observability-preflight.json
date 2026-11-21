@@ -1,0 +1,56 @@
+{
+  "checkedAt": "2026-11-21T10:10:45.670Z",
+  "missing": [],
+  "targets": [
+    {
+      "job": "cadvisor",
+      "url": "http://cadvisor:8080/metrics",
+      "health": "up"
+    },
+    {
+      "job": "postgres",
+      "url": "http://postgres-exporter:9187/metrics",
+      "health": "up"
+    },
+    {
+      "job": "prometheus",
+      "url": "http://localhost:9090/metrics",
+      "health": "up"
+    },
+    {
+      "job": "rabbitmq",
+      "url": "http://rabbitmq:15692/metrics",
+      "health": "up"
+    },
+    {
+      "job": "rabbitmq-queues",
+      "url": "http://rabbitmq:15692/metrics/detailed?family=queue_coarse_metrics&family=queue_consumer_count&family=queue_delivery_metrics",
+      "health": "up"
+    },
+    {
+      "job": "services",
+      "url": "http://engagement:3005/metrics",
+      "health": "up"
+    },
+    {
+      "job": "services",
+      "url": "http://auth:3000/metrics",
+      "health": "up"
+    },
+    {
+      "job": "services",
+      "url": "http://catalog:3001/metrics",
+      "health": "up"
+    },
+    {
+      "job": "services",
+      "url": "http://wallet:3002/metrics",
+      "health": "up"
+    },
+    {
+      "job": "services",
+      "url": "http://auction:3003/metrics",
+      "health": "up"
+    }
+  ]
+}

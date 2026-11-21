@@ -1,0 +1,853 @@
+{
+  "testid": "stress-2db2c1ec",
+  "from": "2026-11-21T10:23:29.359Z",
+  "to": "2026-11-21T10:34:01.115Z",
+  "totalPanels": 64,
+  "missingPanels": [],
+  "panels": [
+    {
+      "board": "ecilost-infra",
+      "title": "Disponibilidad de los targets",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "up",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "CPU por contenedor (nucleos)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (container) (rate(container_cpu_usage_seconds_total[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Memoria (working set)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (container) (container_memory_working_set_bytes)",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "CPU: tiempo esperando turno",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (container) (rate(container_pressure_cpu_waiting_seconds_total[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Conexiones por base",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (datname) (pg_stat_database_numbackends{datname=~\".*_load\"})",
+          "hasSamples": true
+        },
+        {
+          "expression": "max(pg_settings_max_connections)",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Sesiones por estado",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (datname, state) (pg_stat_activity_count{datname=~\".*_load\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Sesiones esperando un lock",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "(sum by (datname) (pg_stat_activity_count{datname=~\".*_load\", wait_event_type=\"Lock\"}) or on (datname) (0 * sum by (datname) (pg_stat_database_numbackends{datname=~\".*_load\"})))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Locks por modo",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (datname, mode) (pg_locks_count{datname=~\".*_load\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Transacciones/s",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (datname) (rate(pg_stat_database_xact_commit{datname=~\".*_load\"}[30s]))",
+          "hasSamples": true
+        },
+        {
+          "expression": "sum by (datname) (rate(pg_stat_database_xact_rollback{datname=~\".*_load\"}[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Deadlocks y transaccion mas larga",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (datname) (increase(pg_stat_database_deadlocks{datname=~\".*_load\"}[30s]))",
+          "hasSamples": true
+        },
+        {
+          "expression": "max by (datname) (pg_stat_activity_max_tx_duration{datname=~\".*_load\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Filas escritas/s",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (datname) (rate(pg_stat_database_tup_inserted{datname=~\".*_load\"}[30s]))",
+          "hasSamples": true
+        },
+        {
+          "expression": "sum by (datname) (rate(pg_stat_database_tup_updated{datname=~\".*_load\"}[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Aciertos de cache",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (datname) (rate(pg_stat_database_blks_hit{datname=~\".*_load\"}[30s])) / (sum by (datname) (rate(pg_stat_database_blks_hit{datname=~\".*_load\"}[30s])) + sum by (datname) (rate(pg_stat_database_blks_read{datname=~\".*_load\"}[30s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Consultas con mas tiempo en la ventana (pg_stat_statements)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "topk(10, sum by (datname, queryid) (increase(pg_stat_statements_seconds_total{datname=~\".*_load\"}[632s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Mensajes listos por cola",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (queue) (rabbitmq_detailed_queue_messages_ready)",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Mensajes sin confirmar por cola",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (queue) (rabbitmq_detailed_queue_messages_unacked)",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Publicados y entregados/s",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum(rate(rabbitmq_global_messages_received_total[30s]))",
+          "hasSamples": true
+        },
+        {
+          "expression": "sum(rate(rabbitmq_global_messages_delivered_total[30s]))",
+          "hasSamples": true
+        },
+        {
+          "expression": "sum(rate(rabbitmq_global_messages_dead_lettered_rejected_total[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Conexiones abiertas/s",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum(rate(rabbitmq_connections_opened_total[30s]))",
+          "hasSamples": true
+        },
+        {
+          "expression": "sum(rate(rabbitmq_connections_closed_total[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Conexiones y canales",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum(rabbitmq_connections)",
+          "hasSamples": true
+        },
+        {
+          "expression": "sum(rabbitmq_channels)",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-infra",
+      "title": "Memoria del broker",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum(rabbitmq_process_resident_memory_bytes)",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "VUs",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (testid) (k6_vus{testid=~\"stress-2db2c1ec\"})",
+          "hasSamples": true
+        },
+        {
+          "expression": "sum by (testid) (k6_vus_max{testid=~\"stress-2db2c1ec\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "Iteraciones completadas por escenario",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (scenario) (k6_iterations_total{testid=~\"stress-2db2c1ec\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "Peticiones/s: exitosas y fallidas",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\", expected_response=\"true\"}[30s]))",
+          "hasSamples": true
+        },
+        {
+          "expression": "(sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\", expected_response=\"false\"}[30s])) or (0 * sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "Peticiones/s por endpoint",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (name) (rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "Tasa de error por endpoint",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "((sum by (name) (rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\", expected_response=\"false\"}[30s])) or on (name) (0 * sum by (name) (rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s])))) / sum by (name) (rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "Duracion promedio por endpoint",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_avg(sum by (name) (rate(k6_http_req_duration_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "p50 por endpoint",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_quantile(0.5, sum by (name) (rate(k6_http_req_duration_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "p90 por endpoint",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_quantile(0.9, sum by (name) (rate(k6_http_req_duration_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "p95 por endpoint",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_quantile(0.95, sum by (name) (rate(k6_http_req_duration_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "p99 por endpoint",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_quantile(0.99, sum by (name) (rate(k6_http_req_duration_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "Desglose de una peticion (p95)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_quantile(0.95, sum (rate(k6_http_req_blocked_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        },
+        {
+          "expression": "histogram_quantile(0.95, sum (rate(k6_http_req_connecting_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        },
+        {
+          "expression": "histogram_quantile(0.95, sum (rate(k6_http_req_waiting_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        },
+        {
+          "expression": "histogram_quantile(0.95, sum (rate(k6_http_req_receiving_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "Tasa de checks fallidos",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "1 - avg by (check) (k6_checks_rate{testid=~\"stress-2db2c1ec\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "Resultado de las pujas/s",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "(sum(rate(k6_bids_accepted_total{testid=~\"stress-2db2c1ec\"}[30s])) or (0 * sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))))",
+          "hasSamples": true
+        },
+        {
+          "expression": "(sum(rate(k6_bids_409_outbid_total{testid=~\"stress-2db2c1ec\"}[30s])) or (0 * sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))))",
+          "hasSamples": true
+        },
+        {
+          "expression": "(sum(rate(k6_bids_409_below_minimum_total{testid=~\"stress-2db2c1ec\"}[30s])) or (0 * sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))))",
+          "hasSamples": true
+        },
+        {
+          "expression": "(sum(rate(k6_bids_409_insufficient_funds_total{testid=~\"stress-2db2c1ec\"}[30s])) or (0 * sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))))",
+          "hasSamples": true
+        },
+        {
+          "expression": "(sum(rate(k6_bids_409_round_closed_total{testid=~\"stress-2db2c1ec\"}[30s])) or (0 * sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))))",
+          "hasSamples": true
+        },
+        {
+          "expression": "(sum(rate(k6_bids_409_other_total{testid=~\"stress-2db2c1ec\"}[30s])) or (0 * sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))))",
+          "hasSamples": true
+        },
+        {
+          "expression": "(sum(rate(k6_bids_unavailable_total{testid=~\"stress-2db2c1ec\"}[30s])) or (0 * sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "Tiempo real (requisito < 1 s)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_quantile(0.5, sum (rate(k6_realtime_price_propagation_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        },
+        {
+          "expression": "histogram_quantile(0.95, sum (rate(k6_realtime_price_propagation_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        },
+        {
+          "expression": "histogram_quantile(0.99, sum (rate(k6_realtime_price_propagation_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        },
+        {
+          "expression": "histogram_quantile(0.95, sum (rate(k6_realtime_bid_to_price_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        },
+        {
+          "expression": "histogram_quantile(0.95, sum(k6_realtime_round_close_lag_seconds{testid=~\"stress-2db2c1ec\"}))",
+          "hasSamples": true
+        },
+        {
+          "expression": "(sum(rate(k6_realtime_price_events_missed_total{testid=~\"stress-2db2c1ec\"}[30s])) or (0 * sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "Sesiones de socket (acumulado)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum(k6_ws_sessions_total{testid=~\"stress-2db2c1ec\"})",
+          "hasSamples": true
+        },
+        {
+          "expression": "(sum by (reason) (k6_ws_errors_total{testid=~\"stress-2db2c1ec\"}) or (0 * sum(k6_ws_sessions_total{testid=~\"stress-2db2c1ec\"})))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "Conexion y room.join (p95 acumulado)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_quantile(0.95, sum(k6_ws_connect_duration_seconds{testid=~\"stress-2db2c1ec\"}))",
+          "hasSamples": true
+        },
+        {
+          "expression": "histogram_quantile(0.95, sum(k6_ws_join_duration_seconds{testid=~\"stress-2db2c1ec\"}))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-k6",
+      "title": "Eventos recibidos/s por tipo",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (event) (rate(k6_ws_events_received_total{testid=~\"stress-2db2c1ec\"}[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "VUs activos",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum(k6_vus{testid=~\"stress-2db2c1ec\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "Peticiones/s (k6)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "Errores HTTP",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "(sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\", expected_response=\"false\"}[30s])) or vector(0)) / sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "p95 HTTP (todas)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_quantile(0.95, sum (rate(k6_http_req_duration_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "p95 precio en vivo",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_quantile(0.95, sum (rate(k6_realtime_price_propagation_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "Pujas aceptadas/s",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum(rate(k6_bids_accepted_total{testid=~\"stress-2db2c1ec\"}[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "Usuarios contra latencia p95",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_quantile(0.95, sum by (name) (rate(k6_http_req_duration_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        },
+        {
+          "expression": "sum(k6_vus{testid=~\"stress-2db2c1ec\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "Tiempo real (requisito < 1 s)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_quantile(0.95, sum (rate(k6_realtime_price_propagation_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        },
+        {
+          "expression": "histogram_quantile(0.95, sum (rate(k6_realtime_bid_to_price_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        },
+        {
+          "expression": "histogram_quantile(0.95, sum(k6_realtime_round_close_lag_seconds{testid=~\"stress-2db2c1ec\"}))",
+          "hasSamples": true
+        },
+        {
+          "expression": "histogram_quantile(0.95, sum (rate(k6_realtime_event_delivery_seconds{testid=~\"stress-2db2c1ec\"}[30s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "Errores y pujas",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "(sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\", expected_response=\"false\"}[30s])) or (0 * sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))))",
+          "hasSamples": true
+        },
+        {
+          "expression": "(sum(rate(k6_bids_unavailable_total{testid=~\"stress-2db2c1ec\"}[30s])) or (0 * sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))))",
+          "hasSamples": true
+        },
+        {
+          "expression": "(sum(rate(k6_bids_accepted_total{testid=~\"stress-2db2c1ec\"}[30s])) or (0 * sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))))",
+          "hasSamples": true
+        },
+        {
+          "expression": "(sum(rate(k6_ws_errors_total{testid=~\"stress-2db2c1ec\"}[30s])) or (0 * sum(rate(k6_http_reqs_total{testid=~\"stress-2db2c1ec\"}[30s]))))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "CPU por contenedor (nucleos)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (container) (rate(container_cpu_usage_seconds_total[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "Event loop p99 por servicio",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "max by (service) (nodejs_eventloop_lag_p99_seconds{job=\"services\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "p95 por servicio (lado servidor)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_quantile(0.95, sum by (le, service) (rate(http_server_request_duration_seconds_bucket{route!=\"/metrics\"}[30s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "Postgres: sesiones esperando un lock",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "(sum by (datname) (pg_stat_activity_count{datname=~\".*_load\", wait_event_type=\"Lock\"}) or on (datname) (0 * sum by (datname) (pg_stat_database_numbackends{datname=~\".*_load\"})))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "Postgres: conexiones por base",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (datname) (pg_stat_database_numbackends{datname=~\".*_load\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-overview",
+      "title": "RabbitMQ: mensajes sin consumir por cola",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (queue) (rabbitmq_detailed_queue_messages_ready + rabbitmq_detailed_queue_messages_unacked)",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-services",
+      "title": "Peticiones/s por ruta",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (service, route) (rate(http_server_request_duration_seconds_count{job=\"services\", service=~\".*\", route!=\"/metrics\"}[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-services",
+      "title": "Respuestas 5xx y 4xx/s",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "(sum by (service, route, status_code) (rate(http_server_request_duration_seconds_count{job=\"services\", service=~\".*\", status_code=~\"5..\"}[30s])) or on (service, route) (0 * sum by (service, route) (rate(http_server_request_duration_seconds_count{job=\"services\", service=~\".*\", route!=\"/metrics\"}[30s]))))",
+          "hasSamples": true
+        },
+        {
+          "expression": "(sum by (service, route, status_code) (rate(http_server_request_duration_seconds_count{job=\"services\", service=~\".*\", status_code=~\"4..\"}[30s])) or on (service, route) (0 * sum by (service, route) (rate(http_server_request_duration_seconds_count{job=\"services\", service=~\".*\", route!=\"/metrics\"}[30s]))))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-services",
+      "title": "p95 por ruta",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_quantile(0.95, sum by (le, service, route) (rate(http_server_request_duration_seconds_bucket{job=\"services\", service=~\".*\", route!=\"/metrics\"}[30s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-services",
+      "title": "p99 por ruta",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "histogram_quantile(0.99, sum by (le, service, route) (rate(http_server_request_duration_seconds_bucket{job=\"services\", service=~\".*\", route!=\"/metrics\"}[30s])))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-services",
+      "title": "CPU del proceso (nucleos)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (service) (rate(process_cpu_seconds_total{job=\"services\", service=~\".*\"}[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-services",
+      "title": "Utilizacion del event loop",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "avg by (service) (nodejs_eventloop_utilization_summary{job=\"services\", service=~\".*\", quantile=\"0.5\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-services",
+      "title": "Event loop lag (p99)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "max by (service) (nodejs_eventloop_lag_p99_seconds{job=\"services\", service=~\".*\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-services",
+      "title": "Memoria residente",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "max by (service) (process_resident_memory_bytes{job=\"services\", service=~\".*\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-services",
+      "title": "Heap usado / total",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "max by (service) (nodejs_heap_size_used_bytes{job=\"services\", service=~\".*\"})",
+          "hasSamples": true
+        },
+        {
+          "expression": "max by (service) (nodejs_heap_size_total_bytes{job=\"services\", service=~\".*\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-services",
+      "title": "Tiempo en GC (s/s)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "sum by (service, kind) (rate(nodejs_gc_duration_seconds_sum{job=\"services\", service=~\".*\"}[30s]))",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-services",
+      "title": "Handles activos",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "max by (service) (nodejs_active_handles_total{job=\"services\", service=~\".*\"})",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-services",
+      "title": "Sockets conectados (engagement)",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "max(realtime_connected_sockets)",
+          "hasSamples": true
+        }
+      ]
+    },
+    {
+      "board": "ecilost-services",
+      "title": "Tiempo en marcha",
+      "hasSamples": true,
+      "targets": [
+        {
+          "expression": "min by (service) (time() - process_start_time_seconds{job=\"services\", service=~\".*\"})",
+          "hasSamples": true
+        }
+      ]
+    }
+  ]
+}
