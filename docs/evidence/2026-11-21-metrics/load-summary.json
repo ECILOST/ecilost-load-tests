@@ -1,0 +1,564 @@
+{
+    "metrics": {
+        "http_req_duration{expected_response:true}": {
+            "p(95)": 26.252493049999988,
+            "p(99)": 50.95195769000001,
+            "max": 251.522161,
+            "avg": 8.01849950317385,
+            "min": 0.683641,
+            "med": 4.1039215,
+            "p(90)": 19.1486829
+        },
+        "http_req_duration{name:GET /wallet/me}": {
+            "med": 1.825124,
+            "p(90)": 2.4649198000000005,
+            "p(95)": 2.9435692499999995,
+            "p(99)": 5.395003510000006,
+            "max": 40.935712,
+            "avg": 2.0049798129857996,
+            "min": 0.749194,
+            "thresholds": {
+                "p(95)<300": false
+            }
+        },
+        "http_req_duration": {
+            "max": 251.522161,
+            "avg": 8.01849950317385,
+            "min": 0.683641,
+            "med": 4.1039215,
+            "p(90)": 19.1486829,
+            "p(95)": 26.252493049999988,
+            "p(99)": 50.95195769000001
+        },
+        "http_req_tls_handshaking": {
+            "p(95)": 0,
+            "p(99)": 0,
+            "max": 0,
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "p(90)": 0
+        },
+        "bids_409_below_minimum": {
+            "count": 395,
+            "rate": 0.6269439038495236
+        },
+        "http_req_receiving": {
+            "avg": 0.06164803177940096,
+            "min": 0.012481,
+            "med": 0.057217,
+            "p(90)": 0.090184,
+            "p(95)": 0.10329149999999994,
+            "p(99)": 0.13923765000000002,
+            "max": 2.263943
+        },
+        "ws_events_received": {
+            "count": 164266,
+            "rate": 260.7229552145464
+        },
+        "realtime_round_close_lag": {
+            "avg": 95,
+            "min": 95,
+            "med": 95,
+            "p(90)": 95,
+            "p(95)": 95,
+            "p(99)": 95,
+            "max": 95,
+            "thresholds": {
+                "p(95)<1000": false
+            }
+        },
+        "data_sent": {
+            "count": 84013607,
+            "rate": 133346.3765798979
+        },
+        "data_received": {
+            "count": 722344061,
+            "rate": 1146504.3177869832
+        },
+        "vus_max": {
+            "value": 120,
+            "min": 120,
+            "max": 120
+        },
+        "http_req_connecting": {
+            "p(95)": 0.19682965,
+            "p(99)": 0.2653278600000006,
+            "max": 11.219705,
+            "avg": 0.022890206851859513,
+            "min": 0,
+            "med": 0,
+            "p(90)": 0.13651590000000033
+        },
+        "realtime_price_propagation": {
+            "min": 16,
+            "med": 140,
+            "p(90)": 218.5,
+            "p(95)": 230,
+            "p(99)": 241,
+            "max": 257,
+            "avg": 139.3227848101266,
+            "thresholds": {
+                "p(95)<1000": false
+            }
+        },
+        "http_req_sending": {
+            "p(90)": 0.03779470000000003,
+            "p(95)": 0.054480599999999976,
+            "p(99)": 0.0795066000000001,
+            "max": 2.753648,
+            "avg": 0.020247103033024037,
+            "min": 0.00452,
+            "med": 0.013421
+        },
+        "checks": {
+            "passes": 196762,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "iterations": {
+            "rate": 0.6078975067705507,
+            "count": 383
+        },
+        "bids_accepted": {
+            "count": 1898,
+            "rate": 3.012505137990875
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 97988,
+            "thresholds": {
+                "rate<0.01": false
+            },
+            "value": 0
+        },
+        "http_req_waiting": {
+            "p(90)": 19.0702235,
+            "p(95)": 26.167087649999996,
+            "p(99)": 50.84891422000009,
+            "max": 251.441387,
+            "avg": 7.936604368361396,
+            "min": 0.619968,
+            "med": 4.0208325
+        },
+        "vus": {
+            "value": 1,
+            "min": 0,
+            "max": 120
+        },
+        "http_req_duration{name:POST /rounds/:id/bids}": {
+            "p(95)": 69.67212795000006,
+            "p(99)": 112.19733368000007,
+            "max": 251.522161,
+            "avg": 31.585185660988135,
+            "min": 1.728137,
+            "med": 28.023771500000002,
+            "p(90)": 56.14489490000001,
+            "thresholds": {
+                "p(95)<1000": false
+            }
+        },
+        "ws_connecting": {
+            "p(99)": 30.289624070000038,
+            "max": 54.60324,
+            "avg": 1.945589691588786,
+            "min": 0.424075,
+            "med": 0.628444,
+            "p(90)": 2.733517700000001,
+            "p(95)": 5.301231599999999
+        },
+        "realtime_event_delivery": {
+            "p(90)": 6,
+            "p(95)": 6,
+            "p(99)": 8,
+            "max": 25,
+            "avg": 3.34354644296446,
+            "min": 1,
+            "med": 3
+        },
+        "ws_msgs_sent": {
+            "count": 3396,
+            "rate": 5.390130373349321
+        },
+        "bids_409_outbid": {
+            "count": 53,
+            "rate": 0.08412158709879683
+        },
+        "ws_connect_duration": {
+            "p(90)": 5,
+            "p(95)": 9.349999999999994,
+            "p(99)": 32.870000000000005,
+            "max": 61,
+            "avg": 3.364485981308411,
+            "min": 1,
+            "med": 2
+        },
+        "http_req_duration{name:GET /rooms/:id}": {
+            "med": 4.702639,
+            "p(90)": 18.570801999999997,
+            "p(95)": 24.507398,
+            "p(99)": 42.94201015999996,
+            "max": 126.202836,
+            "avg": 8.951266539708067,
+            "min": 1.806026,
+            "thresholds": {
+                "p(95)<300": false
+            }
+        },
+        "http_req_duration{name:GET /notifications}": {
+            "avg": 3.5677783711851347,
+            "min": 0.683641,
+            "med": 2.223825,
+            "p(90)": 7.0984439,
+            "p(95)": 10.33023325,
+            "p(99)": 19.308085570000006,
+            "max": 79.220859,
+            "thresholds": {
+                "p(95)<300": false
+            }
+        },
+        "iteration_duration": {
+            "p(90)": 332917.70786120003,
+            "p(95)": 371275.3763158,
+            "p(99)": 412813.30997242,
+            "max": 417853.269474,
+            "avg": 124142.6102767493,
+            "min": 24715.165641,
+            "med": 46975.316563
+        },
+        "ws_session_duration": {
+            "avg": 292082.90652888984,
+            "min": 180347.544439,
+            "med": 295358.389505,
+            "p(90)": 394711.88609740004,
+            "p(95)": 400258.9847579,
+            "p(99)": 414764.60635753995,
+            "max": 417830.965462
+        },
+        "http_reqs": {
+            "count": 97988,
+            "rate": 155.5265297478661
+        },
+        "ws_join_duration": {
+            "min": 3,
+            "med": 5,
+            "p(90)": 9,
+            "p(95)": 13.349999999999994,
+            "p(99)": 16.870000000000005,
+            "max": 35,
+            "avg": 6.074766355140187
+        },
+        "http_req_duration{name:GET /rooms/:id/state}": {
+            "p(95)": 24.7285275,
+            "p(99)": 69.23158950000004,
+            "max": 119.183777,
+            "avg": 8.68922331171266,
+            "min": 0.752843,
+            "med": 4.992411,
+            "p(90)": 17.353681,
+            "thresholds": {
+                "p(95)<300": false
+            }
+        },
+        "realtime_bid_to_price": {
+            "avg": 176.0970464135021,
+            "min": 64,
+            "med": 177,
+            "p(90)": 253,
+            "p(95)": 265,
+            "p(99)": 292.0999999999999,
+            "max": 471
+        },
+        "ws_msgs_received": {
+            "count": 167749,
+            "rate": 266.2511719667183
+        },
+        "ws_sessions": {
+            "rate": 0.3396607479083495,
+            "count": 214
+        },
+        "ws_join_ok": {
+            "passes": 214,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "http_req_blocked": {
+            "p(90)": 0.1841568000000001,
+            "p(95)": 0.25842589999999993,
+            "p(99)": 0.33126038000000013,
+            "max": 11.306589,
+            "avg": 0.03460449053966092,
+            "min": 0.00119,
+            "med": 0.00455
+        },
+        "bids_409_round_closed": {
+            "count": 2,
+            "rate": 0.0031743995131621448
+        }
+    },
+    "setup_data": {
+        "clockOffset": 1
+    },
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+            "setup": {
+                "name": "setup",
+                "path": "::setup",
+                "id": "5c0f8025f7e0b6654089e5b00e950f1a",
+                "groups": {},
+                "checks": {
+                        "GET /rooms/:id/state 200": {
+                            "passes": 2,
+                            "fails": 0,
+                            "name": "GET /rooms/:id/state 200",
+                            "path": "::setup::GET /rooms/:id/state 200",
+                            "id": "38706f1bb05afa02b642d7007b1335cd"
+                        },
+                        "GET /rooms/:id/state cuerpo valido": {
+                            "id": "bf55054887d98a913e0f73f2f7c505b6",
+                            "passes": 2,
+                            "fails": 0,
+                            "name": "GET /rooms/:id/state cuerpo valido",
+                            "path": "::setup::GET /rooms/:id/state cuerpo valido"
+                        }
+                    }
+            },
+            "teardown": {
+                "groups": {},
+                "checks": {
+                        "GET /rooms/:id/state 200": {
+                            "name": "GET /rooms/:id/state 200",
+                            "path": "::teardown::GET /rooms/:id/state 200",
+                            "id": "03b0de33c104038a04e636409ae9b8f4",
+                            "passes": 2,
+                            "fails": 0
+                        },
+                        "GET /rooms/:id/state cuerpo valido": {
+                            "name": "GET /rooms/:id/state cuerpo valido",
+                            "path": "::teardown::GET /rooms/:id/state cuerpo valido",
+                            "id": "7a9b79a13d5301d25475b421593d6895",
+                            "passes": 2,
+                            "fails": 0
+                        }
+                    },
+                "name": "teardown",
+                "path": "::teardown",
+                "id": "a8a9942382e8ffe2e56ef29e664b8229"
+            }
+        },
+        "checks": {
+            "GET /wallet/me 200": {
+                "fails": 0,
+                "name": "GET /wallet/me 200",
+                "path": "::GET /wallet/me 200",
+                "id": "d2cceed1f2f25c4e800e4c09224145e1",
+                "passes": 14924
+            },
+            "GET /wallet/me cuerpo valido": {
+                "path": "::GET /wallet/me cuerpo valido",
+                "id": "488269d1563ea6d428e6f83a421c4d8f",
+                "passes": 14924,
+                "fails": 0,
+                "name": "GET /wallet/me cuerpo valido"
+            },
+            "GET /rooms/:id 200": {
+                "fails": 0,
+                "name": "GET /rooms/:id 200",
+                "path": "::GET /rooms/:id 200",
+                "id": "31e387d854ac3c67d9c73ec3faed37a9",
+                "passes": 26103
+            },
+            "GET /rooms/:id cuerpo valido": {
+                "name": "GET /rooms/:id cuerpo valido",
+                "path": "::GET /rooms/:id cuerpo valido",
+                "id": "757e6dd1569b5e19646a2214d6cf66e4",
+                "passes": 26103,
+                "fails": 0
+            },
+            "GET /notifications 200": {
+                "fails": 0,
+                "name": "GET /notifications 200",
+                "path": "::GET /notifications 200",
+                "id": "04128137025d8f912d2a785c0ec3b9d3",
+                "passes": 20774
+            },
+            "GET /notifications cuerpo valido": {
+                "id": "458ff1ce7445abea7c80abd9da5c5acc",
+                "passes": 20774,
+                "fails": 0,
+                "name": "GET /notifications cuerpo valido",
+                "path": "::GET /notifications cuerpo valido"
+            },
+            "GET /rooms/:id/activity 200": {
+                "name": "GET /rooms/:id/activity 200",
+                "path": "::GET /rooms/:id/activity 200",
+                "id": "45ccdd82b59f3b958e91e41246b05f1a",
+                "passes": 13887,
+                "fails": 0
+            },
+            "GET /rooms/:id/activity cuerpo valido": {
+                "name": "GET /rooms/:id/activity cuerpo valido",
+                "path": "::GET /rooms/:id/activity cuerpo valido",
+                "id": "3e64cc1649d225fe141f9025cadf991b",
+                "passes": 13887,
+                "fails": 0
+            },
+            "GET /rooms/:id/state 200": {
+                "id": "55340951dfb939cd1981bccaac8e31f7",
+                "passes": 13887,
+                "fails": 0,
+                "name": "GET /rooms/:id/state 200",
+                "path": "::GET /rooms/:id/state 200"
+            },
+            "GET /rooms/:id/state cuerpo valido": {
+                "name": "GET /rooms/:id/state cuerpo valido",
+                "path": "::GET /rooms/:id/state cuerpo valido",
+                "id": "0b268264b538aa0d2010273ec783952f",
+                "passes": 13887,
+                "fails": 0
+            },
+            "GET /pickups/slots 200": {
+                "path": "::GET /pickups/slots 200",
+                "id": "88d8dcae685aff4da7ce61dde7be650e",
+                "passes": 1373,
+                "fails": 0,
+                "name": "GET /pickups/slots 200"
+            },
+            "GET /pickups/slots cuerpo valido": {
+                "id": "1f0257beccfcbfd97230993809adc1ae",
+                "passes": 1373,
+                "fails": 0,
+                "name": "GET /pickups/slots cuerpo valido",
+                "path": "::GET /pickups/slots cuerpo valido"
+            },
+            "GET /pickups/mine 200": {
+                "id": "28219db780fbfb94da4703a236df5f17",
+                "passes": 1373,
+                "fails": 0,
+                "name": "GET /pickups/mine 200",
+                "path": "::GET /pickups/mine 200"
+            },
+            "GET /pickups/mine cuerpo valido": {
+                "id": "b1ce45ecfa021aefe51f2948fe202f8d",
+                "passes": 1373,
+                "fails": 0,
+                "name": "GET /pickups/mine cuerpo valido",
+                "path": "::GET /pickups/mine cuerpo valido"
+            },
+            "GET /profiles/me 200": {
+                "name": "GET /profiles/me 200",
+                "path": "::GET /profiles/me 200",
+                "id": "82603871b1ae851c4bed3c79813fd057",
+                "passes": 1373,
+                "fails": 0
+            },
+            "GET /profiles/me cuerpo valido": {
+                "name": "GET /profiles/me cuerpo valido",
+                "path": "::GET /profiles/me cuerpo valido",
+                "id": "95a17910d3a416a257b10e364d6de3ec",
+                "passes": 1373,
+                "fails": 0
+            },
+            "GET /leaderboard 200": {
+                "path": "::GET /leaderboard 200",
+                "id": "c86d2dab569a65f279e4bb6ced922d38",
+                "passes": 1373,
+                "fails": 0,
+                "name": "GET /leaderboard 200"
+            },
+            "GET /leaderboard cuerpo valido": {
+                "name": "GET /leaderboard cuerpo valido",
+                "path": "::GET /leaderboard cuerpo valido",
+                "id": "161052777cdc3ad93351294c6b406415",
+                "passes": 1373,
+                "fails": 0
+            },
+            "GET /rooms 200": {
+                "name": "GET /rooms 200",
+                "path": "::GET /rooms 200",
+                "id": "d8a00e0c4d6226039fd422a8453eade0",
+                "passes": 259,
+                "fails": 0
+            },
+            "GET /rooms cuerpo valido": {
+                "name": "GET /rooms cuerpo valido",
+                "path": "::GET /rooms cuerpo valido",
+                "id": "92dc95098e54c2758b3c15af9263f181",
+                "passes": 259,
+                "fails": 0
+            },
+            "GET /rooms?include=rounds 200": {
+                "passes": 259,
+                "fails": 0,
+                "name": "GET /rooms?include=rounds 200",
+                "path": "::GET /rooms?include=rounds 200",
+                "id": "96ea350c4b6a7d9f5c3b239831ff8c52"
+            },
+            "GET /rooms?include=rounds cuerpo valido": {
+                "fails": 0,
+                "name": "GET /rooms?include=rounds cuerpo valido",
+                "path": "::GET /rooms?include=rounds cuerpo valido",
+                "id": "3bf341fbb3834564f8f5a6c5c665755b",
+                "passes": 259
+            },
+            "GET /items?ids= 200": {
+                "name": "GET /items?ids= 200",
+                "path": "::GET /items?ids= 200",
+                "id": "669aec4eca65e3d121d7753b004a34c1",
+                "passes": 40,
+                "fails": 0
+            },
+            "GET /items?ids= cuerpo valido": {
+                "fails": 0,
+                "name": "GET /items?ids= cuerpo valido",
+                "path": "::GET /items?ids= cuerpo valido",
+                "id": "e995e62977249074b007123b41dbb4a0",
+                "passes": 40
+            },
+            "chat.join accepted": {
+                "passes": 28,
+                "fails": 0,
+                "name": "chat.join accepted",
+                "path": "::chat.join accepted",
+                "id": "c43205f8f6b3c2fd84328c95292e1f25"
+            },
+            "POST /rounds/:id/bids 201 o 409": {
+                "fails": 0,
+                "name": "POST /rounds/:id/bids 201 o 409",
+                "path": "::POST /rounds/:id/bids 201 o 409",
+                "id": "b850a0d9da0ada11814f65a2a16936ed",
+                "passes": 2348
+            },
+            "POST /rounds/:id/bids aceptada trae secuencia": {
+                "name": "POST /rounds/:id/bids aceptada trae secuencia",
+                "path": "::POST /rounds/:id/bids aceptada trae secuencia",
+                "id": "00b6ffca46d2ae87204a971dd3fbd4a1",
+                "passes": 2348,
+                "fails": 0
+            },
+            "chat.send accepted or room closed": {
+                "name": "chat.send accepted or room closed",
+                "path": "::chat.send accepted or room closed",
+                "id": "3bedd301eb61f6d27a8d87182d56afff",
+                "passes": 774,
+                "fails": 0
+            },
+            "PUT /rounds/:id/auto-bid 200 o 409": {
+                "fails": 0,
+                "name": "PUT /rounds/:id/auto-bid 200 o 409",
+                "path": "::PUT /rounds/:id/auto-bid 200 o 409",
+                "id": "5f878a227488a0ed796e800a8d8358ec",
+                "passes": 6
+            }
+        }
+    }
+}
