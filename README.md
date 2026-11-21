@@ -19,7 +19,7 @@ misma carpeta. No hace falta Node, k6, `npm install` ni los `.env` de los servic
 ```
 ECILOST/
   ecilost-auth-service/   ecilost-catalog-service/   ecilost-wallet-service/
-  ecilost-auction-service/   ecilost-engagement-service/
+  ecilost-auction-service/   ecilost-engagement-service/   ecilost-frontend/
   ecilost-load-tests/      <- este repo
 ```
 
@@ -46,6 +46,36 @@ Que hay en `docker-compose.yml`:
 | Sistema bajo prueba | `compose/docker-compose.yml` | Postgres 17.11, RabbitMQ 4.3.6, Azurite, `keygen` y los cinco servicios construidos con su Dockerfile |
 | Observabilidad | `observability/docker-compose.yml` | Prometheus, Grafana (tableros ya cargados), cAdvisor, postgres_exporter |
 | Ejecutor | `docker-compose.yml` (`runner`, perfil `tools`) | Node 22 + k6 2.2.0 + cliente Docker (`docker/runner.Dockerfile`); corre `scripts/run.mjs` |
+
+## Aplicación web local y gamificación
+
+El mismo `docker compose up -d --build --wait` sirve ECILOST en
+[http://localhost:5173](http://localhost:5173). Nginx sirve el frontend compilado y
+republica en el mismo origen las APIs, Socket.IO y las fotos de Azurite. Engagement
+se conecta a MongoDB dentro de Compose y conserva su base `ecilost_engagement_load`
+en un volumen. MongoDB no publica puertos en el host. Una base nueva empieza sin
+progreso ni ranking, que se alimentan con los eventos de las subastas.
+
+Para iniciar sesión desde el navegador, crea un cliente OAuth de tipo **Aplicación
+web** en Google y registra exactamente `http://localhost:5173/auth/google/callback`
+como URI de redirección autorizada. Antes de levantar Compose, configura en tu
+sesión las variables `ECILOST_GOOGLE_CLIENT_ID` y `ECILOST_GOOGLE_CLIENT_SECRET`.
+Configura `ECILOST_STAFF_EMAILS` con los correos de funcionarios separados por
+comas. Usa un usuario estudiante en otra sesión del navegador para la prueba.
+El flujo sintético de k6 sigue funcionando sin credenciales de Google.
+
+Si cambias `ECILOST_WEB_PORT` (por defecto 5173), registra en Google la URI con el
+puerto nuevo y abre el frontend con ese mismo puerto. Google sigue siendo una
+dependencia externa del inicio de sesión. No guardes secretos en Git.
+
+Para la demo de portabilidad, comprueba `docker compose ps`, inicia sesión con dos
+estudiantes en sesiones independientes y abre la misma sala. La puja aceptada debe
+reflejarse en ambos navegadores. Al cerrar una ronda, revisa el perfil y el top semanal
+en la versión de los servicios que incluye gamificación. Grafana sigue en el puerto 3300.
+
+Para obtener métricas de aplicación en Grafana, usa las revisiones del backend
+que exponen GET /metrics. Compose también arranca con revisiones sin ese endpoint,
+pero esos servicios no aportan métricas de aplicación a Prometheus.
 
 ## Aislamiento
 
