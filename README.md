@@ -137,7 +137,7 @@ docker compose run --rm runner stress -- -e STEPS=100,200,300
 docker compose run --rm runner soak -- -e DURATION=45m
 ```
 
-Todos duran **10 minutos** salvo `smoke` (~1.5 min) y `bid-storm` (90 s); los tiempos se cambian
+Los perfiles originales duran **10 minutos** salvo `smoke` (~1.5 min) y `bid-storm` (90 s); los tiempos se cambian
 con las variables de cada escenario (`docs/EJECUCION.md`).
 
 | Escenario | Que mide | Datos por defecto |
@@ -149,6 +149,51 @@ con las variables de cada escenario (`docs/EJECUCION.md`).
 | `spike` | `BASE` 10 -> `PEAK` 200 en 10 s y recuperacion | 200, 2 salas |
 | `soak` | `USERS` 60 constantes (8.5 min): deriva; con `DURATION` mayor, fugas lentas | 70, 1 sala |
 | `bid-storm` | contencion de pujas sobre una ronda (`VUS`) | 100, 1 sala |
+| `pickup-load` | reservas de franjas y emisión de códigos sobre adjudicaciones pagadas | 10 estudiantes, 10 rondas, 2 min |
+| `pickup-stress` | contención de cupos, escalones `STEPS` y recuperación | 20 estudiantes, 20 rondas |
+
+### Endpoints actuales
+
+Las sesiones incluyen actividad de sala, perfil, ranking, recogidas y franjas. Las lecturas
+adicionales de engagement se repiten cada 30 s por usuario (`ENGAGEMENT_READ_INTERVAL`).
+`GAMIFICATION=false` omite perfil/ranking; `EXTENDED_READS=false` omite esas lecturas adicionales.
+`CHAT_RATIO` controla la fracción de usuarios con chat (0.1 por defecto).
+Para comparar con el cliente anterior, combinar `CLIENT_READS=legacy`, `EXTENDED_READS=false`
+y `CHAT_RATIO=0`.
+
+Las pujas respetan la modalidad: oferta clásica/misteriosa, reclamación holandesa o un sobre
+por usuario/ronda. `--dynamic` habilita las modalidades mediante las APIs y conserva el resultado
+real del sorteo; no garantiza que una corrida recorra todas. `--buy-now 500` configura compra
+inmediata y `BUY_NOW_RATIO` controla su uso (0 por defecto). Las rondas liquidadas se verifican
+según su modalidad. Una corrida breve sin cierre temporal no demuestra latencia de cierre;
+conservar corridas largas para evaluar ese requisito.
+
+```bash
+# Humo de sala, chat y lecturas actuales
+docker compose run --rm runner smoke -- -e CHAT_RATIO=1
+# Modalidades sorteadas y compra inmediata
+docker compose run --rm runner load --dynamic --buy-now 500 -- -e BUY_NOW_RATIO=0.1
+# Reservas de recogida: un adjudicatario real y distinto por VU
+docker compose run --rm runner pickup-load
+docker compose run --rm runner pickup-stress
+# Validación breve del perfil de estrés, sin buscar saturación
+docker compose run --rm runner pickup-stress --students 3 -- -e STEPS=1,2,3 -e STEP_RAMP=3s -e STEP_HOLD=5s
+# Carreras: compra, último cupo, código de un solo uso; chat y ayuda del personal
+docker compose run --rm --no-deps --entrypoint node runner scripts/journey-smoke.mjs
+# Expiración JWT y reconexión Socket.IO con token vigente, tras preparar datos
+docker compose run --rm --no-deps --entrypoint node runner scripts/session-smoke.mjs
+# Sobres: sorteo real, privacidad, cierre temporal, ranking y liquidación
+docker compose run --rm --no-deps --entrypoint node runner scripts/sealed-smoke.mjs
+npm test
+```
+
+Para recogidas, `--students` debe cubrir el máximo de VUs (`USERS` o `STEPS`), hasta 500.
+La preparación compra objetos por API y espera su proyección en engagement; no escribe en BD.
+Las pruebas de recogida alternan una franja limitada y otra amplia. HTTP 409 por cupo agotado
+es un resultado de negocio válido; se comprueba además que nunca se supera la capacidad.
+Las pruebas funcionales verifican liquidación estricta y propietario de cada recogida.
+Los tokens son sintéticos y locales: la prueba de sesión no prueba login Google ni renovación
+de cookies. No ejecutar dos preparaciones simultáneas: comparten `.data/run.json` y tokens.
 
 Estructura: `k6/lib` (configuracion, datos, API con checks, cliente Socket.IO, metricas y
 umbrales), `k6/flows` (lo que hace cada tipo de usuario, segun el frontend) y `k6/scenarios`
@@ -196,6 +241,17 @@ comprobacion termina en `OK`, `AVISO` (esperable pero conviene mirarlo, por ejem
 superados que se liberan al liquidar) o `FALLA`; con alguna `FALLA` sale con codigo 1.
 
 ## Empezar de cero
+
+Para generar evidencias únicamente de carga y estrés, con curvas de diez minutos cada una:
+
+```bash
+node scripts/evidence-suite.mjs
+```
+
+Requiere Node 22 y Docker con el entorno levantado. Guarda un índice en
+`results/evidence-10m-<fecha>/README.md`, con informes y enlaces de Grafana por corrida.
+La preparación y el cierre de conexiones se registran aparte de los 600 segundos de cada curva.
+Los umbrales se evalúan al final, sin aborto anticipado durante esta batería.
 
 Las bases de carga son solo de esta prueba. `docker compose down -v` borra bases y series;
 `docker compose up -d --build --wait` las crea de nuevo. Para llaves nuevas, borrar tambien

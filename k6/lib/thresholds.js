@@ -26,5 +26,5 @@ export const REFERENCE = {
 
 /** Para estres: sin aprobacion, pero se corta si el sistema ya no atiende (evita minutos inutiles). */
 export const ABORT_WHEN_DOWN = {
-  http_req_failed: [{ threshold: 'rate<0.5', abortOnFail: true, delayAbortEval: '1m' }],
+  http_req_failed: [{ threshold: 'rate<0.5', abortOnFail: __ENV.FULL_DURATION !== 'true', delayAbortEval: '1m' }],
 };
