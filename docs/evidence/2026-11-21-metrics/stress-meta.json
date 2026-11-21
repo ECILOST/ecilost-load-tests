@@ -1,0 +1,19 @@
+{
+  "scenario": "stress",
+  "testid": "stress-2db2c1ec",
+  "runId": "2db2c1ec",
+  "startedAt": "2026-11-21T10:23:29.359Z",
+  "finishedAt": "2026-11-21T10:34:01.115Z",
+  "data": {
+    "students": 420,
+    "rooms": 2,
+    "rounds": 6
+  },
+  "k6Args": [
+    "-e",
+    "FULL_DURATION=true"
+  ],
+  "k6Exit": 0,
+  "verifyExit": 0,
+  "grafana": "http://localhost:3300/d/ecilost-overview?from=1795256549359&to=1795257301115&var-testid=stress-2db2c1ec"
+}

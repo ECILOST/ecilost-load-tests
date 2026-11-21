@@ -1,0 +1,47 @@
+
+Verificacion de la corrida 2db2c1ec (stress, sala ab8df588)
+
+  OK     sala 1: Aforo nunca superado — 210/210
+  OK     sala 1: Contador de admitidos coherente — 210
+  OK     sala 1: ronda 1: historial estrictamente creciente — 1013 aceptadas, 120 rechazadas
+  OK     sala 1: ronda 1: historial según modalidad CLASSIC
+  OK     sala 1: ronda 1: precio y lider = ultima puja aceptada — 276919
+  OK     sala 1: ronda 1: un solo evento de cierre — AWARDED (EXPIRED)
+  OK     sala 1: ronda 1: ninguna reserva tras liquidar
+  OK     sala 1: ronda 1: cobro al ganador = precio adjudicado — 276919
+  OK     sala 1: ronda 2: historial estrictamente creciente — 175 aceptadas, 34 rechazadas
+  OK     sala 1: ronda 2: historial según modalidad CLASSIC
+  OK     sala 1: ronda 2: precio y lider = ultima puja aceptada — 48468
+  OK     sala 1: ronda 2: el lider tiene reservado su precio — 48468
+  OK     sala 1: ronda 3: historial estrictamente creciente — 0 aceptadas, 0 rechazadas
+  OK     sala 1: ronda 3: historial según modalidad CLASSIC
+  OK     sala 1: ronda 4: historial estrictamente creciente — 0 aceptadas, 0 rechazadas
+  OK     sala 1: ronda 4: historial según modalidad CLASSIC
+  OK     sala 1: ronda 5: historial estrictamente creciente — 0 aceptadas, 0 rechazadas
+  OK     sala 1: ronda 5: historial según modalidad CLASSIC
+  OK     sala 1: ronda 6: historial estrictamente creciente — 0 aceptadas, 0 rechazadas
+  OK     sala 1: ronda 6: historial según modalidad CLASSIC
+  OK     sala 2: Aforo nunca superado — 210/210
+  OK     sala 2: Contador de admitidos coherente — 210
+  OK     sala 2: ronda 1: historial estrictamente creciente — 1463 aceptadas, 210 rechazadas
+  OK     sala 2: ronda 1: historial según modalidad CLASSIC
+  OK     sala 2: ronda 1: precio y lider = ultima puja aceptada — 350177
+  OK     sala 2: ronda 1: un solo evento de cierre — AWARDED (EXPIRED)
+  OK     sala 2: ronda 1: ninguna reserva tras liquidar
+  OK     sala 2: ronda 1: cobro al ganador = precio adjudicado — 350177
+  OK     sala 2: ronda 2: historial estrictamente creciente — 227 aceptadas, 56 rechazadas
+  OK     sala 2: ronda 2: historial según modalidad CLASSIC
+  OK     sala 2: ronda 2: precio y lider = ultima puja aceptada — 62630
+  OK     sala 2: ronda 2: el lider tiene reservado su precio — 62630
+  OK     sala 2: ronda 3: historial estrictamente creciente — 0 aceptadas, 0 rechazadas
+  OK     sala 2: ronda 3: historial según modalidad CLASSIC
+  OK     sala 2: ronda 4: historial estrictamente creciente — 0 aceptadas, 0 rechazadas
+  OK     sala 2: ronda 4: historial según modalidad CLASSIC
+  OK     sala 2: ronda 5: historial estrictamente creciente — 0 aceptadas, 0 rechazadas
+  OK     sala 2: ronda 5: historial según modalidad CLASSIC
+  OK     sala 2: ronda 6: historial estrictamente creciente — 0 aceptadas, 0 rechazadas
+  OK     sala 2: ronda 6: historial según modalidad CLASSIC
+  OK     Ningun saldo negativo — 420 billeteras
+  OK     Retenido = suma de reservas
+
+Sin fallas; 0 aviso(s).

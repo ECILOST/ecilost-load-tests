@@ -20,7 +20,7 @@ function persist() {
   const rows = state.profiles.map((profile) => {
     const meta = profile.meta;
     const report = profile.resultDir ? `../${profile.resultDir}/report.md` : `${profile.name}.log`;
-    return `| ${profile.name} | 600 | ${meta ? Math.round((Date.parse(meta.finishedAt) - Date.parse(meta.startedAt)) / 1000) : '—'} | ${meta?.k6Exit ?? '—'} | ${meta?.verifyExit ?? '—'} | [Informe](${report}) | ${meta ? `[k6](${links('ecilost-k6', meta)}) · [Correlación](${links('ecilost-overview', meta)}) · [Infraestructura](${links('ecilost-infra', meta)})` : '—'} |`;
+    return `| ${profile.name} | 600 | ${meta ? Math.round((Date.parse(meta.finishedAt) - Date.parse(meta.startedAt)) / 1000) : '—'} | ${meta?.k6Exit ?? '—'} | ${meta?.verifyExit ?? '—'} | [${profile.observabilityAuditExit === 0 ? 'OK' : 'Revisar'}](${profile.name}-dashboard-audit.json) | [Informe](${report}) | ${meta ? `[k6](${links('ecilost-k6', meta)}) · [Correlación](${links('ecilost-overview', meta)}) · [Infraestructura](${links('ecilost-infra', meta)})` : '—'} |`;
   });
   writeFileSync(join(dir, 'README.md'), `# Evidencias: carga y estrés de 10 minutos
 
@@ -32,14 +32,15 @@ FULL_DURATION=true conserva los umbrales y desactiva únicamente su aborto antic
 Salida k6 0: umbrales cumplidos; 99: umbrales incumplidos. La verificación de invariantes tiene su propio código.
 Las pruebas se ejecutan en secuencia sobre Docker local, con datos nuevos en cada una.
 
-| Escenario | Carga programada (s) | Ventana real (s) | k6 | Verificación | Evidencia | Grafana |
-|---|---|---|---|---|---|---|
+| Escenario | Carga programada (s) | Ventana real (s) | k6 | Verificación | Paneles | Evidencia | Grafana |
+|---|---|---|---|---|---|---|---|
 ${rows.join('\n')}
 
 Los archivos plan.json, source-sha256.json y environment.txt permiten identificar parámetros y entorno.
 Los logs de ejecución están en esta carpeta. Los datos, resumen k6, logs de servicios y reportes de cada
 corrida están en su carpeta enlazada. Los tokens y llaves de .data no se copian a las evidencias.
-Los paneles de servicios que requieren GET /metrics no tendrán datos cuando esa revisión no lo exponga.
+observability-preflight.json comprueba los recolectores y las métricas de los cinco servicios antes de empezar.
+Cada corrida tiene una auditoría de todas las consultas de los tableros. Un evento sin observaciones no se inventa.
 `);
 }
 const commands = profiles.map((profile) => ({ ...profile, loadSeconds: 600, command: ['docker', 'compose', 'run', '--rm', '--no-deps', 'runner', profile.name,
@@ -59,6 +60,12 @@ const images = spawnSync('docker', ['compose', 'images', '--format', 'json'], { 
 writeFileSync(join(dir, 'environment.txt'), `${inventory.stdout}\n${images.stdout}`);
 persist();
 console.log(`EVIDENCE_DIR=${dir}`);
+const collectors = spawnSync('docker', ['compose', 'up', '-d', 'prometheus', 'grafana', 'cadvisor', 'postgres-exporter'], { cwd: ROOT, encoding: 'utf8' });
+writeFileSync(join(dir, 'collectors.log'), (collectors.stdout ?? '') + (collectors.stderr ?? ''));
+if (collectors.status !== 0) throw new Error('Could not start observability collectors');
+const preflight = spawnSync(process.execPath, [join(ROOT, 'scripts', 'verify-observability.mjs'), '--wait-seconds', '60'], { cwd: ROOT, encoding: 'utf8' });
+writeFileSync(join(dir, 'observability-preflight.json'), preflight.stdout || preflight.stderr);
+if (preflight.status !== 0) throw new Error('Observability incomplete: see observability-preflight.json before running evidence profiles');
 for (const profile of commands) {
   state.current = profile.name;
   persist();
@@ -79,6 +86,11 @@ for (const profile of commands) {
   if (resultDir) {
     entry.resultDir = resultDir;
     entry.meta = JSON.parse(readFileSync(join(ROOT, 'results', resultDir, 'meta.json'), 'utf8'));
+    const audit = spawnSync(process.execPath, [join(ROOT, 'scripts', 'audit-dashboards.mjs'),
+      '--testid', entry.meta.testid, '--from', entry.meta.startedAt, '--to', entry.meta.finishedAt,
+      '--out', join(dir, `${profile.name}-dashboard-audit.json`)], { cwd: ROOT, encoding: 'utf8' });
+    writeFileSync(join(dir, `${profile.name}-dashboard-audit.log`), (audit.stdout ?? '') + (audit.stderr ?? ''));
+    entry.observabilityAuditExit = audit.status ?? 1;
   }
   state.profiles.push(entry);
   persist();
@@ -88,4 +100,4 @@ state.current = null;
 state.finishedAt = new Date().toISOString();
 persist();
 console.log(`COMPLETE ${dir}`);
-process.exitCode = state.profiles.some((profile) => profile.exit !== 0) ? 1 : 0;
+process.exitCode = state.profiles.some((profile) => profile.exit !== 0 || profile.observabilityAuditExit !== 0) ? 1 : 0;
